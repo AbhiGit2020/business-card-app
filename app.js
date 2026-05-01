@@ -5,53 +5,45 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let tokenClient;
 let accessToken = null;
 
-// 1. Initialize Google Auth
+// 1. Initialize Google Identity Services
 function gisLoaded() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: (resp) => {
-            if (resp.error) return;
-            accessToken = resp.access_token;
-            document.getElementById('auth_btn').innerText = "Logged In";
-            document.getElementById('app_content').style.display = 'block';
-        }
-    });
+    console.log("Google Identity Services Script Loaded");
+    try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: (resp) => {
+                if (resp.error) {
+                    console.error("Auth Error:", resp.error);
+                    return;
+                }
+                console.log("Access Token Received!");
+                accessToken = resp.access_token;
+                document.getElementById('auth_btn').innerText = "✅ Logged In";
+                document.getElementById('app_content').style.display = 'block';
+            }
+        });
+        console.log("Token Client Initialized");
+    } catch (e) {
+        console.error("GIS Initialization Failed:", e);
+    }
 }
 
-function gapiLoaded() { /* gapi.load logic if needed for older Drive V3 methods */ }
-
+// 2. Handle Login Button
 document.getElementById('auth_btn').onclick = () => {
-    tokenClient.requestAccessToken();
+    console.log("Login button clicked...");
+    if (!tokenClient) {
+        alert("Google scripts are still loading. Please wait 5 seconds and try again.");
+        return;
+    }
+    // Request access token (this triggers the popup)
+    tokenClient.requestAccessToken({ prompt: 'consent' });
 };
 
-// 2. Vision API Processing
-document.getElementById('card_input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+// 3. Vision API (Placeholder for gapiLoaded to prevent errors)
+function gapiLoaded() { console.log("GAPI Loaded"); }
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-        const base64 = event.target.result;
-        document.getElementById('status_msg').innerText = "AI is reading the card...";
-        
-        try {
-            const rawText = await performOCR(base64);
-            const contact = parseOCRText(rawText);
-            
-            // Fill UI
-            document.getElementById('field_name').value = contact.name || "";
-            document.getElementById('field_email').value = contact.email || "";
-            document.getElementById('editor_section').style.display = 'block';
-            document.getElementById('status_msg').innerText = "Scanning complete!";
-        } catch (err) {
-            console.error(err);
-            document.getElementById('status_msg').innerText = "OCR failed. Try again.";
-        }
-    };
-    reader.readAsDataURL(file);
-});
-
+// ... (Rest of your performOCR and parseOCRText functions below)
 async function performOCR(base64Image) {
     const url = `https://vision.googleapis.com/v1/images:annotate?key=${VISION_API_KEY}`;
     const data = {
