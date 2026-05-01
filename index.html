@@ -1,51 +1,107 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Business Card CRM</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rolodex</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>📇 Contact Hub</h1>
-            <p>AI-Powered Business Card Scanner</p>
-            <button id="auth_btn">Login with Google</button>
-        </header>
 
-        <main id="app_content">
-            <section class="card-upload">
-                <label for="card_input" class="custom-file-upload">
-                    Click to Scan a Business Card
-                </label>
-                <input type="file" id="card_input" accept="image/*">
-                <div id="status_msg"></div>
-            </section>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
 
-            <section id="editor_section" style="display:none;" class="editor-pane">
-                <h3>Verify Details</h3>
-                <div class="form-group">
-                    <input type="text" id="field_name" placeholder="Name">
-                    <input type="text" id="field_company" placeholder="Company">
-                    <input type="email" id="field_email" placeholder="Email">
-                    <input type="text" id="field_industry" placeholder="Industry (Custom)">
-                    <textarea id="field_notes" placeholder="Notes..."></textarea>
-                    <button id="save_contact" class="btn-save">Add to Library</button>
-                </div>
-            </section>
-
-            <hr>
-
-            <section class="library-pane">
-                <input type="text" id="search_bar" placeholder="🔍 Search contacts by name, company, or region...">
-                <div id="contact_grid"></div>
-            </section>
-        </main>
+<!-- Add/Edit Modal -->
+<div class="overlay" id="addOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">Add Contact</span>
+      <button class="icon-btn" onclick="closeAdd()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
     </div>
+    <div class="modal-body">
+      <div id="uploadSection">
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+          <div class="upload-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <strong style="font-size:13px">Drop business card photo here</strong>
+          <p>or click to browse — Vision API will extract details automatically</p>
+        </div>
+      </div>
+      <div id="previewSection" style="display:none">
+        <div class="preview-wrap">
+          <img id="previewImg" src="" alt="Card preview">
+          <button class="icon-btn preview-remove" onclick="clearFile()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div id="scanBanner" style="display:none" class="scanning-banner">
+          <span class="spin">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-9-9"/></svg>
+          </span>
+          Reading card with Google Vision API…
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:1rem">
+        <div class="fg"><label>First Name</label><input type="text" id="f_firstName" placeholder="Jane"></div>
+        <div class="fg"><label>Last Name</label><input type="text" id="f_lastName" placeholder="Smith"></div>
+        <div class="fg full"><label>Job Title</label><input type="text" id="f_title" placeholder="Head of Partnerships"></div>
+        <div class="fg full"><label>Company</label><input type="text" id="f_company" placeholder="Acme Corp"></div>
+        <div class="fg"><label>Email</label><input type="text" id="f_email" placeholder="jane@acme.com"></div>
+        <div class="fg"><label>Phone</label><input type="text" id="f_phone" placeholder="+65 9123 4567"></div>
+        <div class="fg full"><label>Address</label><input type="text" id="f_address" placeholder="10 Anson Road, Singapore"></div>
+        <div class="fg full"><label>Website</label><input type="text" id="f_website" placeholder="acme.com"></div>
+        <hr class="section-divider">
+        <div class="fg"><label>Industry</label>
+          <select id="f_industry">
+            <option value="">— Select —</option>
+            <option>Technology</option><option>Finance</option><option>Healthcare</option>
+            <option>Energy</option><option>Real Estate</option><option>Manufacturing</option>
+            <option>Consulting</option><option>Government</option><option>Retail</option>
+            <option>Media</option><option>Education</option><option>Other</option>
+          </select>
+        </div>
+        <div class="fg"><label>Region</label>
+          <select id="f_region">
+            <option value="">— Select —</option>
+            <option>Singapore</option><option>Southeast Asia</option><option>South Asia</option>
+            <option>East Asia</option><option>Middle East</option><option>Europe</option>
+            <option>North America</option><option>Australia / NZ</option><option>Africa</option>
+          </select>
+        </div>
+        <div class="fg full"><label>Influence Level</label>
+          <select id="f_influence">
+            <option value="">— Select —</option>
+            <option value="high">High — Decision maker / C-suite</option>
+            <option value="mid">Mid — Senior manager / Director</option>
+            <option value="low">Low — Operational contact</option>
+          </select>
+        </div>
+        <div class="fg full"><label>Notes</label>
+          <textarea id="f_notes" placeholder="Context, how you met, follow-up actions…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAdd()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveContact()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save Contact
+      </button>
+    </div>
+  </div>
+</div>
 
-    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-    <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script src="app.js"></script>
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
