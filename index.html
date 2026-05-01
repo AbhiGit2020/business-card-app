@@ -1,0 +1,51 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Business Card CRM</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📇 Contact Hub</h1>
+            <p>AI-Powered Business Card Scanner</p>
+            <button id="auth_btn">Login with Google</button>
+        </header>
+
+        <main id="app_content" style="display:none;">
+            <section class="card-upload">
+                <label for="card_input" class="custom-file-upload">
+                    Click to Scan a Business Card
+                </label>
+                <input type="file" id="card_input" accept="image/*">
+                <div id="status_msg"></div>
+            </section>
+
+            <section id="editor_section" style="display:none;" class="editor-pane">
+                <h3>Verify Details</h3>
+                <div class="form-group">
+                    <input type="text" id="field_name" placeholder="Name">
+                    <input type="text" id="field_company" placeholder="Company">
+                    <input type="email" id="field_email" placeholder="Email">
+                    <input type="text" id="field_industry" placeholder="Industry (Custom)">
+                    <textarea id="field_notes" placeholder="Notes..."></textarea>
+                    <button id="save_contact" class="btn-save">Add to Library</button>
+                </div>
+            </section>
+
+            <hr>
+
+            <section class="library-pane">
+                <input type="text" id="search_bar" placeholder="🔍 Search contacts by name, company, or region...">
+                <div id="contact_grid"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script src="app.js"></script>
+</body>
+</html>
