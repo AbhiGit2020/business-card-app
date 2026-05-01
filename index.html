@@ -23,18 +23,32 @@
       </button>
     </div>
     <div class="modal-body">
+      <!-- Single upload -->
       <div id="uploadSection">
-        <div class="upload-zone" id="uploadZone">
-          <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+        <!-- Mobile camera buttons -->
+        <div class="camera-actions">
+          <button class="camera-btn" onclick="document.getElementById('cameraInput').click()">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Take Photo
+          </button>
+          <button class="camera-btn camera-btn-ghost" onclick="document.getElementById('fileInput').click()">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Photo
+          </button>
+        </div>
+        <!-- Hidden inputs -->
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this.files[0])">
+        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
+        <!-- Desktop drag & drop -->
+        <div class="upload-zone desktop-only" id="uploadZone">
           <div class="upload-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
           </div>
           <strong style="font-size:13px">Drop business card photo here</strong>
-          <p>or click to browse — Vision API will extract details automatically</p>
+          <p>or use the buttons above to take/upload a photo</p>
         </div>
       </div>
-
-      <!-- Crop Section -->
+      <!-- Crop -->
       <div id="cropSection" style="display:none">
         <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
           <span style="font-size:13px;font-weight:500">Adjust & crop</span>
@@ -43,14 +57,8 @@
             <button class="btn btn-primary btn-sm" onclick="confirmCrop()">Use this image</button>
           </div>
         </div>
-        <div class="crop-container" id="cropContainer">
+        <div class="crop-container">
           <img id="cropImg" src="" alt="Crop preview">
-          <div class="crop-overlay" id="cropOverlay">
-            <div class="crop-handle tl" data-handle="tl"></div>
-            <div class="crop-handle tr" data-handle="tr"></div>
-            <div class="crop-handle bl" data-handle="bl"></div>
-            <div class="crop-handle br" data-handle="br"></div>
-          </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
           <span style="font-size:12px;color:var(--text-muted)">Zoom</span>
@@ -58,7 +66,7 @@
           <span style="font-size:12px;color:var(--text-muted)" id="zoomVal">1×</span>
         </div>
       </div>
-
+      <!-- Preview -->
       <div id="previewSection" style="display:none">
         <div class="preview-wrap">
           <img id="previewImg" src="" alt="Card preview">
@@ -67,13 +75,11 @@
           </button>
         </div>
         <div id="scanBanner" style="display:none" class="scanning-banner">
-          <span class="spin">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-9-9"/></svg>
-          </span>
+          <span class="spin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-9-9"/></svg></span>
           Reading card with Google Vision API…
         </div>
       </div>
-
+      <!-- Form -->
       <div class="form-grid" style="margin-top:1rem">
         <div class="fg"><label>First Name</label><input type="text" id="f_firstName" placeholder="Jane"></div>
         <div class="fg"><label>Last Name</label><input type="text" id="f_lastName" placeholder="Smith"></div>
@@ -124,7 +130,118 @@
   </div>
 </div>
 
-<!-- Full-screen Detail View -->
+<!-- Bulk Upload Modal -->
+<div class="overlay" id="bulkOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Bulk Upload Cards</span>
+      <button class="icon-btn" onclick="closeBulk()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <!-- Mobile bulk camera -->
+      <div class="camera-actions" style="margin-bottom:1rem">
+        <button class="camera-btn" onclick="document.getElementById('bulkCameraInput').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Take Photo
+        </button>
+        <button class="camera-btn camera-btn-ghost" onclick="document.getElementById('bulkFileInput').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Photos
+        </button>
+      </div>
+      <input type="file" id="bulkCameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleBulkFiles(this.files)">
+      <input type="file" id="bulkFileInput" accept="image/*" multiple style="display:none" onchange="handleBulkFiles(this.files)">
+      <!-- Desktop drag & drop -->
+      <div class="upload-zone desktop-only" id="bulkZone">
+        <div class="upload-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        </div>
+        <strong style="font-size:13px">Drop multiple card photos here</strong>
+        <p>All cards will be scanned automatically and queued in Unprocessed</p>
+      </div>
+      <div id="bulkProgress" style="display:none;margin-top:1rem">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px" id="bulkProgressText">Uploading and scanning…</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progressBar" style="width:0%"></div>
+        </div>
+        <div id="bulkLog" style="margin-top:10px;max-height:160px;overflow-y:auto;font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBulk()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Review Modal -->
+<div class="overlay" id="reviewOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <span class="modal-title" id="reviewTitle">Review Card</span>
+        <span id="reviewCounter" style="font-size:12px;color:var(--text-hint);margin-left:8px"></span>
+      </div>
+      <button class="icon-btn" onclick="closeReview()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="preview-wrap" id="reviewImgWrap" style="margin-bottom:1rem">
+        <img id="reviewImg" src="" alt="Card" style="width:100%;max-height:180px;object-fit:contain;border-radius:10px;border:1px solid var(--border)">
+      </div>
+      <div class="form-grid">
+        <div class="fg"><label>First Name</label><input type="text" id="r_firstName" placeholder="Jane"></div>
+        <div class="fg"><label>Last Name</label><input type="text" id="r_lastName" placeholder="Smith"></div>
+        <div class="fg full"><label>Job Title</label><input type="text" id="r_title" placeholder="Head of Partnerships"></div>
+        <div class="fg full"><label>Company</label><input type="text" id="r_company" placeholder="Acme Corp"></div>
+        <div class="fg"><label>Email</label><input type="text" id="r_email" placeholder="jane@acme.com"></div>
+        <div class="fg"><label>Phone</label><input type="text" id="r_phone" placeholder="+65 9123 4567"></div>
+        <div class="fg full"><label>Address</label><input type="text" id="r_address" placeholder="10 Anson Road, Singapore"></div>
+        <div class="fg full"><label>Website</label><input type="text" id="r_website" placeholder="acme.com"></div>
+        <hr class="section-divider">
+        <div class="fg"><label>Industry</label>
+          <select id="r_industry">
+            <option value="">— Select —</option>
+            <option>Technology</option><option>Finance</option><option>Healthcare</option>
+            <option>Energy</option><option>Real Estate</option><option>Manufacturing</option>
+            <option>Consulting</option><option>Government</option><option>Retail</option>
+            <option>Media</option><option>Education</option><option>Other</option>
+          </select>
+        </div>
+        <div class="fg"><label>Region</label>
+          <select id="r_region">
+            <option value="">— Select —</option>
+            <option>Singapore</option><option>Southeast Asia</option><option>South Asia</option>
+            <option>East Asia</option><option>Middle East</option><option>Europe</option>
+            <option>North America</option><option>Australia / NZ</option><option>Africa</option>
+          </select>
+        </div>
+        <div class="fg full"><label>Influence Level</label>
+          <select id="r_influence">
+            <option value="">— Select —</option>
+            <option value="high">High — Decision maker / C-suite</option>
+            <option value="mid">Mid — Senior manager / Director</option>
+            <option value="low">Low — Operational contact</option>
+          </select>
+        </div>
+        <div class="fg full"><label>Notes</label>
+          <textarea id="r_notes" placeholder="Context, how you met, follow-up actions…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="skipReview()">Skip for now</button>
+      <button class="btn btn-primary" onclick="saveReviewed()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save & Next
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Full-screen Detail -->
 <div class="detail-overlay" id="detailOverlay">
   <div class="detail-fullscreen" id="detailPanel"></div>
 </div>
