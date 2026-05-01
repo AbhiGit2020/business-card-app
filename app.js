@@ -13,13 +13,29 @@ let state = {
   filter: 'all',
   search: '',
   driveFolderId: null,
+  driveFolderUrl: null,
   accessToken: null,
   userInfo: null,
   editingId: null,
   pendingImageFile: null,
   pendingImageBase64: null,
-  tokenClient: null
+  croppedImageBase64: null,
+  tokenClient: null,
+  zoom: 1
 };
+
+// ── Theme ──
+function initTheme() {
+  const saved = localStorage.getItem('connexa-theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('connexa-theme', next);
+}
+initTheme();
 
 // ── Boot ──
 renderApp();
@@ -44,10 +60,13 @@ function renderApp() {
 
 function renderAuth() {
   return `
-    <header><div class="logo">Rolo<em>dex</em></div></header>
+    <header>
+      <div class="logo">Conn<em>exa</em></div>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode"></button>
+    </header>
     <div class="auth-screen">
       <div class="auth-card">
-        <div class="auth-logo">Rolo<em>dex</em></div>
+        <div class="auth-logo">Conn<em>exa</em></div>
         <p class="auth-sub">Your business card contacts, organised and searchable.<br>Stored securely in your Google Drive.</p>
         <button class="google-btn" onclick="signIn()">
           <svg width="18" height="18" viewBox="0 0 24 24">
@@ -64,10 +83,16 @@ function renderAuth() {
 
 function renderShell() {
   const initials = state.userInfo ? (state.userInfo.name || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U';
+  const driveBtn = state.driveFolderUrl
+    ? `<a class="drive-link" href="${state.driveFolderUrl}" target="_blank">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        Drive folder
+      </a>` : '';
   return `
     <header>
-      <div class="logo">Rolo<em>dex</em></div>
+      <div class="logo">Conn<em>exa</em></div>
       <div class="header-right">
+        ${driveBtn}
         <button class="btn btn-primary btn-sm" onclick="openAdd()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
           Add Card
@@ -76,6 +101,7 @@ function renderShell() {
           <div class="user-avatar">${initials}</div>
           <span>${state.userInfo?.name || ''}</span>
         </div>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode"></button>
         <button class="icon-btn" onclick="signOut()" title="Sign out">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
         </button>
@@ -98,13 +124,7 @@ function renderSidebar() {
   });
 
   let html = `
-    <div class="search-wrap">
-      <div class="search-icon">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-      </div>
-      <input id="searchInput" type="text" placeholder="Search contacts…" value="${escHtml(state.search)}" oninput="state.search=this.value.toLowerCase();renderContacts()">
-    </div>
-    <div class="sidebar-label">All</div>
+    <div class="sidebar-label" style="margin-top:0;padding-top:0">All</div>
     <div class="nav-item ${state.filter === 'all' ? 'active' : ''}" onclick="setFilter('all')">
       <div class="nav-item-left">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
@@ -173,6 +193,13 @@ function renderContacts() {
           </button>
         </div>
       </div>
+    </div>
+
+    <div class="main-search-wrap">
+      <div class="main-search-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      </div>
+      <input id="mainSearch" type="text" placeholder="Search by name, company, title, region, industry…" value="${escHtml(state.search)}" oninput="state.search=this.value.toLowerCase();renderContacts()">
     </div>`;
 
   if (!contacts.length) {
@@ -189,6 +216,8 @@ function renderContacts() {
     html += renderListView(contacts);
   }
   main.innerHTML = html;
+  const ms = document.getElementById('mainSearch');
+  if (ms) ms.focus();
 }
 
 function renderCardTile(c) {
@@ -241,6 +270,8 @@ function openAdd() {
   state.editingId = null;
   state.pendingImageFile = null;
   state.pendingImageBase64 = null;
+  state.croppedImageBase64 = null;
+  state.zoom = 1;
   document.getElementById('modalTitle').textContent = 'Add Contact';
   clearForm();
   clearFile();
@@ -251,11 +282,13 @@ function openEdit(id) {
   const c = state.contacts.find(x => x.id === id);
   if (!c) return;
   state.editingId = id;
+  state.croppedImageBase64 = null;
   document.getElementById('modalTitle').textContent = 'Edit Contact';
   closeDetail();
   fillForm(c);
   if (c.driveImageUrl) {
     document.getElementById('uploadSection').style.display = 'none';
+    document.getElementById('cropSection').style.display = 'none';
     document.getElementById('previewSection').style.display = 'block';
     document.getElementById('previewImg').src = c.driveImageUrl;
   } else {
@@ -271,30 +304,68 @@ function clearForm() { FIELDS.forEach(f => { const el = document.getElementById(
 function fillForm(c) { FIELDS.forEach(f => { const el = document.getElementById('f_' + f); if (el) el.value = c[f] || ''; }); }
 function getFormData() { const d = {}; FIELDS.forEach(f => { d[f] = (document.getElementById('f_' + f)?.value.trim() || ''); }); return d; }
 
-// ── File & OCR ──
+// ── File & Crop ──
 function handleFile(file) {
   if (!file) return;
   state.pendingImageFile = file;
   const reader = new FileReader();
   reader.onload = e => {
     state.pendingImageBase64 = e.target.result.split(',')[1];
-    document.getElementById('previewImg').src = e.target.result;
     document.getElementById('uploadSection').style.display = 'none';
-    document.getElementById('previewSection').style.display = 'block';
-    runVisionOCR(state.pendingImageBase64);
+    document.getElementById('previewSection').style.display = 'none';
+    // Show crop tool
+    document.getElementById('cropSection').style.display = 'block';
+    const cropImg = document.getElementById('cropImg');
+    cropImg.src = e.target.result;
+    state.zoom = 1;
+    document.getElementById('zoomSlider').value = 1;
+    document.getElementById('zoomVal').textContent = '1×';
+    applyZoom(1);
   };
   reader.readAsDataURL(file);
+}
+
+function applyZoom(val) {
+  state.zoom = parseFloat(val);
+  document.getElementById('zoomVal').textContent = parseFloat(val).toFixed(2) + '×';
+  const img = document.getElementById('cropImg');
+  if (img) img.style.transform = `scale(${state.zoom})`;
+}
+
+function confirmCrop() {
+  // Use the current image as-is (base64 already set)
+  // For actual pixel crop we use canvas
+  const img = document.getElementById('cropImg');
+  const canvas = document.createElement('canvas');
+  const scale = state.zoom;
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  state.croppedImageBase64 = dataUrl.split(',')[1];
+
+  // Show preview
+  document.getElementById('cropSection').style.display = 'none';
+  document.getElementById('previewSection').style.display = 'block';
+  document.getElementById('previewImg').src = dataUrl;
+
+  // Run OCR on the image
+  runVisionOCR(state.croppedImageBase64 || state.pendingImageBase64);
 }
 
 function clearFile() {
   state.pendingImageFile = null;
   state.pendingImageBase64 = null;
+  state.croppedImageBase64 = null;
   document.getElementById('uploadSection').style.display = 'block';
+  document.getElementById('cropSection').style.display = 'none';
   document.getElementById('previewSection').style.display = 'none';
   const fi = document.getElementById('fileInput');
   if (fi) fi.value = '';
 }
 
+// ── Vision OCR ──
 async function runVisionOCR(base64) {
   document.getElementById('scanBanner').style.display = 'flex';
   try {
@@ -318,28 +389,55 @@ async function runVisionOCR(base64) {
 
 function parseCardText(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Email
   const emailM = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
   if (emailM) setIfEmpty('f_email', emailM[0]);
-  const phoneM = text.match(/[\+\(]?[\d\s\-\(\)\.]{7,20}/);
-  if (phoneM) setIfEmpty('f_phone', phoneM[0].trim());
-  const webM = text.match(/(?:www\.|https?:\/\/)[^\s,]+/i);
+
+  // Phone — prefer mobile (M:) or longest number
+  const mobileM = text.match(/M\s*:\s*([\+\d\s\-]{7,20})/i);
+  if (mobileM) setIfEmpty('f_phone', mobileM[1].trim());
+  else {
+    const phoneM = text.match(/[\+]?[\d\s\-\(\)\.]{8,18}/);
+    if (phoneM) setIfEmpty('f_phone', phoneM[0].trim());
+  }
+
+  // Website
+  const webM = text.match(/(?:www\.|https?:\/\/)[^\s,\n]+/i);
   if (webM) setIfEmpty('f_website', webM[0].replace(/^https?:\/\//, ''));
 
+  // Filter out non-Latin lines (Chinese/Japanese characters) and short/irrelevant lines
+  const latinLines = lines.filter(l => {
+    if (/[\u3000-\u9fff\uac00-\ud7af]/.test(l)) return false; // CJK characters
+    if (l.includes('@')) return false;
+    if (/^[\+\(]/.test(l)) return false;
+    if (/^\d/.test(l)) return false;
+    if (l.length < 2 || l.length > 60) return false;
+    if (/^(T|F|M)\s*:/i.test(l)) return false; // phone labels
+    return true;
+  });
+
   let nameSet = false;
-  for (let i = 0; i < Math.min(5, lines.length); i++) {
-    const l = lines[i];
-    if (l.includes('@') || /^\d/.test(l) || l.length > 50 || /^[\+\(]/.test(l)) continue;
-    if (!nameSet && /^[A-Z][a-z]/.test(l) && l.split(/\s+/).length >= 2 && l.split(/\s+/).length <= 5) {
+  let titleSet = false;
+  for (let i = 0; i < latinLines.length; i++) {
+    const l = latinLines[i];
+    if (!nameSet && /^[A-Z][a-z]/.test(l) && l.split(/\s+/).length >= 2 && l.split(/\s+/).length <= 5 && !/[,#]/.test(l)) {
       const parts = l.split(/\s+/);
       setIfEmpty('f_firstName', parts[0]);
       setIfEmpty('f_lastName', parts.slice(1).join(' '));
       nameSet = true;
-    } else if (nameSet && !document.getElementById('f_title').value && l.length < 60) {
+    } else if (nameSet && !titleSet && l.length < 60 && !/[,#\d]/.test(l)) {
       setIfEmpty('f_title', l);
-    } else if (nameSet && document.getElementById('f_title').value && !document.getElementById('f_company').value && l.length < 60) {
+      titleSet = true;
+    } else if (nameSet && titleSet && !document.getElementById('f_company').value && l.length < 60) {
       setIfEmpty('f_company', l);
     }
   }
+
+  // Address — look for line with #, Floor, Road, Ave, Street, Building
+  const addrM = lines.find(l => /(\#\d|floor|road|ave|street|building|district|pvt|pte|ltd)/i.test(l));
+  if (addrM) setIfEmpty('f_address', addrM);
+
   showToast('Card scanned — please verify the details');
 }
 
@@ -354,11 +452,12 @@ async function saveContact() {
 
   const id = state.editingId || ('c_' + Date.now());
   let driveImageUrl = '', driveImageId = '';
+  const imageBase64 = state.croppedImageBase64 || state.pendingImageBase64;
 
-  if (state.pendingImageFile && state.pendingImageBase64) {
+  if (imageBase64 && state.pendingImageFile) {
     try {
       showToast('Uploading image to Drive…');
-      const r = await uploadImageToDrive(state.pendingImageFile, state.pendingImageBase64, id);
+      const r = await uploadImageToDrive(state.pendingImageFile, imageBase64, id);
       driveImageUrl = r.url;
       driveImageId = r.fileId;
     } catch (e) {
@@ -373,11 +472,8 @@ async function saveContact() {
   const existingCreatedAt = state.editingId ? state.contacts.find(c => c.id === state.editingId)?.createdAt : null;
   const contact = { id, ...data, driveImageUrl, driveImageId, createdAt: existingCreatedAt || new Date().toISOString() };
 
-  if (state.editingId) {
-    state.contacts = state.contacts.map(c => c.id === state.editingId ? contact : c);
-  } else {
-    state.contacts.unshift(contact);
-  }
+  if (state.editingId) state.contacts = state.contacts.map(c => c.id === state.editingId ? contact : c);
+  else state.contacts.unshift(contact);
 
   await saveContactsToDrive();
   closeAdd();
@@ -385,14 +481,22 @@ async function saveContact() {
   showToast(state.editingId ? 'Contact updated' : 'Contact saved');
 }
 
-// ── Detail panel ──
+// ── Detail (full screen split) ──
 function openDetail(id) {
   const c = state.contacts.find(x => x.id === id);
   if (!c) return;
 
-  const imgHtml = c.driveImageUrl
-    ? `<img src="${escHtml(c.driveImageUrl)}" alt="Business card">`
-    : `<div style="color:var(--text-hint);display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>No card image</div>`;
+  const imgPanel = c.driveImageUrl
+    ? `<div class="detail-img-panel" id="imgPanel" onclick="toggleZoom(this)" title="Click to zoom">
+        <img src="${escHtml(c.driveImageUrl)}" alt="Business card">
+        <div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,0.4);color:white;padding:3px 8px;border-radius:6px;font-size:11px;pointer-events:none">Click to zoom</div>
+      </div>`
+    : `<div class="detail-img-panel">
+        <div class="detail-no-img">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          No card image
+        </div>
+      </div>`;
 
   const contactRows = [
     ['Email', c.email ? `<a href="mailto:${escHtml(c.email)}">${escHtml(c.email)}</a>` : ''],
@@ -406,37 +510,45 @@ function openDetail(id) {
   const rTag = c.region ? `<span class="tag tag-gray">${escHtml(c.region)}</span>` : '';
 
   document.getElementById('detailPanel').innerHTML = `
-    <div class="detail-card-img">${imgHtml}</div>
-    <div style="padding:0.875rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-      <span style="font-size:12px;color:var(--text-hint)">${c.createdAt ? 'Added ' + new Date(c.createdAt).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
-      <button class="icon-btn" onclick="closeDetail()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-    </div>
-    <div class="detail-body">
-      <div class="detail-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div>
-      <div class="detail-role">${escHtml(c.title || '')}</div>
-      <div class="detail-company">${escHtml(c.company || '')}</div>
-      <div class="detail-tags">${iTag}${indTag}${rTag}</div>
-      ${contactRows.length ? `<div class="detail-section">
-        <div class="detail-section-title">Contact</div>
-        ${contactRows.map(([l, v]) => `<div class="detail-row"><div class="detail-row-label">${l}</div><div class="detail-row-value">${v}</div></div>`).join('')}
-      </div>` : ''}
-      ${c.notes ? `<div class="detail-section">
-        <div class="detail-section-title">Notes</div>
-        <p style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap">${escHtml(c.notes)}</p>
-      </div>` : ''}
-    </div>
-    <div class="detail-footer">
-      <button class="btn btn-ghost" style="flex:1" onclick="openEdit('${c.id}')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        Edit
-      </button>
-      <button class="btn btn-danger" style="flex:1" onclick="deleteContact('${c.id}')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        Delete
-      </button>
+    ${imgPanel}
+    <div class="detail-info-panel">
+      <div class="detail-info-header">
+        <span style="font-size:12px;color:var(--text-hint)">${c.createdAt ? 'Added ' + new Date(c.createdAt).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+        <button class="icon-btn" onclick="closeDetail()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="detail-info-body">
+        <div class="detail-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div>
+        <div class="detail-role">${escHtml(c.title || '')}</div>
+        <div class="detail-company">${escHtml(c.company || '')}</div>
+        <div class="detail-tags">${iTag}${indTag}${rTag}</div>
+        ${contactRows.length ? `<div class="detail-section">
+          <div class="detail-section-title">Contact</div>
+          ${contactRows.map(([l, v]) => `<div class="detail-row"><div class="detail-row-label">${l}</div><div class="detail-row-value">${v}</div></div>`).join('')}
+        </div>` : ''}
+        ${c.notes ? `<div class="detail-section">
+          <div class="detail-section-title">Notes</div>
+          <p style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap">${escHtml(c.notes)}</p>
+        </div>` : ''}
+      </div>
+      <div class="detail-info-footer">
+        <button class="btn btn-ghost" style="flex:1" onclick="openEdit('${c.id}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
+        <button class="btn btn-danger" style="flex:1" onclick="deleteContact('${c.id}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Delete
+        </button>
+      </div>
     </div>`;
 
   document.getElementById('detailOverlay').classList.add('open');
+}
+
+function toggleZoom(panel) {
+  panel.classList.toggle('zoomed');
 }
 
 function closeDetail() { document.getElementById('detailOverlay').classList.remove('open'); }
@@ -488,10 +600,7 @@ async function signIn() {
 
 function signOut() {
   if (state.accessToken) google.accounts.oauth2.revoke(state.accessToken, () => { });
-  state.accessToken = null;
-  state.contacts = [];
-  state.userInfo = null;
-  state.driveFolderId = null;
+  state.accessToken = null; state.contacts = []; state.userInfo = null; state.driveFolderId = null; state.driveFolderUrl = null;
   renderApp();
 }
 
@@ -502,22 +611,27 @@ async function fetchUserInfo() {
   state.userInfo = await res.json();
 }
 
-// ── Drive API ──
+// ── Drive ──
 async function driveApi(path, method = 'GET', body = null) {
   const res = await fetch(`https://www.googleapis.com${path}`, {
     method,
     headers: { Authorization: `Bearer ${state.accessToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : null
   });
-  if (!res.ok) { const e = await res.text(); throw new Error(`Drive ${method} ${path}: ${res.status} ${e}`); }
+  if (!res.ok) { const e = await res.text(); throw new Error(`Drive ${method}: ${res.status} ${e}`); }
   return res.status === 204 ? null : res.json();
 }
 
 async function ensureDriveFolder() {
-  const res = await driveApi(`/drive/v3/files?q=name='${CONFIG.DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`);
-  if (res.files?.length) { state.driveFolderId = res.files[0].id; return; }
+  const res = await driveApi(`/drive/v3/files?q=name='${CONFIG.DRIVE_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,webViewLink)`);
+  if (res.files?.length) {
+    state.driveFolderId = res.files[0].id;
+    state.driveFolderUrl = `https://drive.google.com/drive/folders/${res.files[0].id}`;
+    return;
+  }
   const folder = await driveApi('/drive/v3/files', 'POST', { name: CONFIG.DRIVE_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' });
   state.driveFolderId = folder.id;
+  state.driveFolderUrl = `https://drive.google.com/drive/folders/${folder.id}`;
 }
 
 async function loadContactsFromDrive() {
@@ -551,7 +665,7 @@ async function saveContactsToDrive() {
 async function uploadImageToDrive(file, base64, contactId) {
   const bytes = atob(base64), arr = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  const blob = new Blob([arr], { type: file.type });
+  const blob = new Blob([arr], { type: 'image/jpeg' });
   const filename = `card_${contactId}_${Date.now()}.jpg`;
   const form = new FormData();
   form.append('metadata', new Blob([JSON.stringify({ name: filename, parents: [state.driveFolderId] })], { type: 'application/json' }));
@@ -575,7 +689,7 @@ async function deleteDriveFile(fileId) {
   });
 }
 
-// ── Utilities ──
+// ── Utils ──
 function escHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rolodex</title>
+<title>Connexa</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -33,6 +33,32 @@
           <p>or click to browse — Vision API will extract details automatically</p>
         </div>
       </div>
+
+      <!-- Crop Section -->
+      <div id="cropSection" style="display:none">
+        <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:13px;font-weight:500">Adjust & crop</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="clearFile()">Cancel</button>
+            <button class="btn btn-primary btn-sm" onclick="confirmCrop()">Use this image</button>
+          </div>
+        </div>
+        <div class="crop-container" id="cropContainer">
+          <img id="cropImg" src="" alt="Crop preview">
+          <div class="crop-overlay" id="cropOverlay">
+            <div class="crop-handle tl" data-handle="tl"></div>
+            <div class="crop-handle tr" data-handle="tr"></div>
+            <div class="crop-handle bl" data-handle="bl"></div>
+            <div class="crop-handle br" data-handle="br"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <span style="font-size:12px;color:var(--text-muted)">Zoom</span>
+          <input type="range" id="zoomSlider" min="0.5" max="3" step="0.05" value="1" oninput="applyZoom(this.value)" style="flex:1">
+          <span style="font-size:12px;color:var(--text-muted)" id="zoomVal">1×</span>
+        </div>
+      </div>
+
       <div id="previewSection" style="display:none">
         <div class="preview-wrap">
           <img id="previewImg" src="" alt="Card preview">
@@ -47,6 +73,7 @@
           Reading card with Google Vision API…
         </div>
       </div>
+
       <div class="form-grid" style="margin-top:1rem">
         <div class="fg"><label>First Name</label><input type="text" id="f_firstName" placeholder="Jane"></div>
         <div class="fg"><label>Last Name</label><input type="text" id="f_lastName" placeholder="Smith"></div>
@@ -97,9 +124,9 @@
   </div>
 </div>
 
-<!-- Detail Panel -->
+<!-- Full-screen Detail View -->
 <div class="detail-overlay" id="detailOverlay">
-  <div class="detail-panel" id="detailPanel"></div>
+  <div class="detail-fullscreen" id="detailPanel"></div>
 </div>
 
 <script src="app.js"></script>
