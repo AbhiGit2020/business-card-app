@@ -255,6 +255,27 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.error { background: var(--danger); color: white; }
 
+/* ── Review image with zoom ── */
+.review-img-wrap {
+  position: relative; margin-bottom: 1rem;
+  background: var(--surface2); border-radius: var(--radius);
+  border: 1px solid var(--border); overflow: hidden;
+  max-height: 240px; display: flex; align-items: center; justify-content: center;
+  cursor: zoom-in;
+}
+.review-img-wrap.expanded { max-height: 480px; cursor: zoom-out; }
+#reviewImg {
+  width: 100%; max-height: 240px; object-fit: contain;
+  transition: max-height 0.3s, transform 0.3s; display: block;
+}
+#reviewImg.zoomed { max-height: 480px; transform: scale(1.5); cursor: zoom-out; }
+.review-img-hint {
+  position: absolute; bottom: 6px; right: 8px;
+  font-size: 11px; color: var(--text-hint);
+  background: var(--surface); padding: 2px 7px; border-radius: 6px;
+  pointer-events: none;
+}
+
 /* ── Camera / upload actions ── */
 .camera-actions { display: flex; gap: 10px; margin-bottom: 1rem; }
 .camera-btn {

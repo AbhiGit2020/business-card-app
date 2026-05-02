@@ -41,8 +41,27 @@ function toggleTheme() {
 }
 initTheme();
 
+// ── Auto-login: restore token from session ──
+async function tryAutoLogin() {
+  const savedToken = sessionStorage.getItem('connexa-token');
+  if (!savedToken) { renderApp(); return; }
+  state.accessToken = savedToken;
+  try {
+    await fetchUserInfo();
+    await ensureFolders();
+    await loadContactsFromDrive();
+    await loadUnprocessedFromDrive();
+    renderApp();
+  } catch(e) {
+    // Token expired — clear and show login
+    sessionStorage.removeItem('connexa-token');
+    state.accessToken = null;
+    renderApp();
+  }
+}
+
 // ── Boot ──
-renderApp();
+tryAutoLogin();
 
 // Drag & drop single (desktop only)
 const uploadZone = document.getElementById('uploadZone');
@@ -412,7 +431,7 @@ function openReviewAt(idx) {
   document.getElementById('reviewCounter').textContent = `${readyIdx} of ${readyItems.length} remaining`;
   document.getElementById('reviewImg').src = u.driveImageUrl || '';
 
-  const R_FIELDS = ['firstName', 'lastName', 'title', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
+  const R_FIELDS = ['firstName', 'lastName', 'title', 'function', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
   R_FIELDS.forEach(f => {
     const el = document.getElementById('r_' + f);
     if (el) el.value = u.scannedData?.[f] || '';
@@ -435,7 +454,7 @@ async function saveReviewed() {
   const u = state.unprocessed[state.reviewIndex];
   if (!u) return;
 
-  const R_FIELDS = ['firstName', 'lastName', 'title', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
+  const R_FIELDS = ['firstName', 'lastName', 'title', 'function', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
   const data = {};
   R_FIELDS.forEach(f => { data[f] = document.getElementById('r_' + f)?.value.trim() || ''; });
 
@@ -451,7 +470,7 @@ async function saveReviewed() {
   try {
     showToast('Saving contact…');
     const newFileId = await copyDriveFile(u.driveFileId, newFilename, state.savedFolderId);
-    const imageUrl = `https://drive.google.com/thumbnail?id=${newFileId}&sz=w400`;
+    const imageUrl = `https://drive.google.com/thumbnail?id=${newFileId}&sz=w800`;
     await makeFilePublic(newFileId);
     await deleteDriveFile(u.driveFileId);
 
@@ -518,7 +537,7 @@ function openEdit(id) {
 
 function closeAdd() { document.getElementById('addOverlay').classList.remove('open'); }
 
-const FIELDS = ['firstName', 'lastName', 'title', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
+const FIELDS = ['firstName', 'lastName', 'title', 'function', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
 function clearForm() { FIELDS.forEach(f => { const el = document.getElementById('f_' + f); if (el) el.value = ''; }); }
 function fillForm(c) { FIELDS.forEach(f => { const el = document.getElementById('f_' + f); if (el) el.value = c[f] || ''; }); }
 function getFormData() { const d = {}; FIELDS.forEach(f => { d[f] = document.getElementById('f_' + f)?.value.trim() || ''; }); return d; }
@@ -691,6 +710,7 @@ function openDetail(id) {
       <div class="detail-info-body">
         <div class="detail-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div>
         <div class="detail-role">${escHtml(c.title || '')}</div>
+        ${c.function ? `<div style="font-size:13px;color:var(--text-hint);margin-bottom:2px">${escHtml(c.function)}</div>` : ''}
         <div class="detail-company">${escHtml(c.company || '')}</div>
         <div class="detail-tags">${iTag}${indTag}${rTag}</div>
         ${rows.length ? `<div class="detail-section"><div class="detail-section-title">Contact</div>${rows.map(([l, v]) => `<div class="detail-row"><div class="detail-row-label">${l}</div><div class="detail-row-value">${v}</div></div>`).join('')}</div>` : ''}
@@ -739,6 +759,7 @@ async function signIn() {
     callback: async resp => {
       if (resp.error) { showToast('Sign in failed', true); return; }
       state.accessToken = resp.access_token;
+      sessionStorage.setItem('connexa-token', resp.access_token);
       await fetchUserInfo();
       await ensureFolders();
       await loadContactsFromDrive();
@@ -751,6 +772,7 @@ async function signIn() {
 
 function signOut() {
   if (state.accessToken) google.accounts.oauth2.revoke(state.accessToken, () => { });
+  sessionStorage.removeItem('connexa-token');
   Object.assign(state, { accessToken: null, contacts: [], unprocessed: [], userInfo: null, savedFolderId: null, inboxFolderId: null, driveFolderUrl: null });
   renderApp();
 }
@@ -848,7 +870,7 @@ async function uploadImageToFolder(file, base64, folderId, filename) {
   const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { Authorization: `Bearer ${state.accessToken}` }, body: form });
   const data = await res.json();
   await makeFilePublic(data.id);
-  return { fileId: data.id, url: `https://drive.google.com/thumbnail?id=${data.id}&sz=w400` };
+  return { fileId: data.id, url: `https://drive.google.com/thumbnail?id=${data.id}&sz=w800` };
 }
 
 async function makeFilePublic(fileId) {

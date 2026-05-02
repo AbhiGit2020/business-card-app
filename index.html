@@ -84,6 +84,7 @@
         <div class="fg"><label>First Name</label><input type="text" id="f_firstName" placeholder="Jane"></div>
         <div class="fg"><label>Last Name</label><input type="text" id="f_lastName" placeholder="Smith"></div>
         <div class="fg full"><label>Job Title</label><input type="text" id="f_title" placeholder="Head of Partnerships"></div>
+        <div class="fg full"><label>Job Function</label><input type="text" id="f_function" placeholder="Sales, Business Development, Engineering…"></div>
         <div class="fg full"><label>Company</label><input type="text" id="f_company" placeholder="Acme Corp"></div>
         <div class="fg"><label>Email</label><input type="text" id="f_email" placeholder="jane@acme.com"></div>
         <div class="fg"><label>Phone</label><input type="text" id="f_phone" placeholder="+65 9123 4567"></div>
@@ -188,13 +189,15 @@
       </button>
     </div>
     <div class="modal-body">
-      <div class="preview-wrap" id="reviewImgWrap" style="margin-bottom:1rem">
-        <img id="reviewImg" src="" alt="Card" style="width:100%;max-height:180px;object-fit:contain;border-radius:10px;border:1px solid var(--border)">
+      <div class="review-img-wrap" id="reviewImgWrap">
+        <img id="reviewImg" src="" alt="Card" onclick="this.classList.toggle('zoomed')" title="Click to zoom">
+        <span class="review-img-hint">Click image to zoom</span>
       </div>
       <div class="form-grid">
         <div class="fg"><label>First Name</label><input type="text" id="r_firstName" placeholder="Jane"></div>
         <div class="fg"><label>Last Name</label><input type="text" id="r_lastName" placeholder="Smith"></div>
         <div class="fg full"><label>Job Title</label><input type="text" id="r_title" placeholder="Head of Partnerships"></div>
+        <div class="fg full"><label>Job Function</label><input type="text" id="r_function" placeholder="Sales, Business Development, Engineering…"></div>
         <div class="fg full"><label>Company</label><input type="text" id="r_company" placeholder="Acme Corp"></div>
         <div class="fg"><label>Email</label><input type="text" id="r_email" placeholder="jane@acme.com"></div>
         <div class="fg"><label>Phone</label><input type="text" id="r_phone" placeholder="+65 9123 4567"></div>
