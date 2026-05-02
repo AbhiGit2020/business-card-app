@@ -430,6 +430,11 @@ function openReviewAt(idx) {
   document.getElementById('reviewTitle').textContent = 'Review Card';
   document.getElementById('reviewCounter').textContent = `${readyIdx} of ${readyItems.length} remaining`;
   document.getElementById('reviewImg').src = u.driveImageUrl || '';
+  // Reset zoom
+  reviewZoomLevel = 1;
+  const rz = document.getElementById('reviewZoomSlider'); if (rz) rz.value = 1;
+  const rl = document.getElementById('reviewZoomLabel'); if (rl) rl.textContent = '1×';
+  const ri = document.getElementById('reviewImg'); if (ri) ri.style.transform = 'scale(1)';
 
   const R_FIELDS = ['firstName', 'lastName', 'title', 'function', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
   R_FIELDS.forEach(f => {
@@ -470,7 +475,7 @@ async function saveReviewed() {
   try {
     showToast('Saving contact…');
     const newFileId = await copyDriveFile(u.driveFileId, newFilename, state.savedFolderId);
-    const imageUrl = `https://drive.google.com/thumbnail?id=${newFileId}&sz=w800`;
+    const imageUrl = `https://drive.google.com/uc?export=view&id=${newFileId}`;
     await makeFilePublic(newFileId);
     await deleteDriveFile(u.driveFileId);
 
@@ -529,7 +534,7 @@ function openEdit(id) {
   if (c.driveImageUrl) {
     document.getElementById('uploadSection').style.display = 'none';
     document.getElementById('cropSection').style.display = 'none';
-    document.getElementById('previewSection').style.display = 'block';
+    document.getElementById('previewSection').style.display = 'flex';
     document.getElementById('previewImg').src = c.driveImageUrl;
   } else clearFile();
   document.getElementById('addOverlay').classList.add('open');
@@ -542,6 +547,43 @@ function clearForm() { FIELDS.forEach(f => { const el = document.getElementById(
 function fillForm(c) { FIELDS.forEach(f => { const el = document.getElementById('f_' + f); if (el) el.value = c[f] || ''; }); }
 function getFormData() { const d = {}; FIELDS.forEach(f => { d[f] = document.getElementById('f_' + f)?.value.trim() || ''; }); return d; }
 
+// ── Review zoom ──
+let reviewZoomLevel = 1;
+function reviewZoom(val) {
+  reviewZoomLevel = parseFloat(val);
+  document.getElementById('reviewZoomLabel').textContent = reviewZoomLevel.toFixed(1) + '×';
+  const img = document.getElementById('reviewImg');
+  if (img) img.style.transform = `scale(${reviewZoomLevel})`;
+  const viewer = document.getElementById('splitImgViewer');
+  if (viewer) viewer.style.alignItems = reviewZoomLevel > 1 ? 'flex-start' : 'center';
+}
+function reviewZoomIn() {
+  const s = document.getElementById('reviewZoomSlider');
+  if (s) { s.value = Math.min(4, parseFloat(s.value) + 0.3); reviewZoom(s.value); }
+}
+function reviewZoomOut() {
+  const s = document.getElementById('reviewZoomSlider');
+  if (s) { s.value = Math.max(1, parseFloat(s.value) - 0.3); reviewZoom(s.value); }
+}
+
+// ── Add panel zoom ──
+let addZoomLevel = 1;
+function addZoom(val) {
+  addZoomLevel = parseFloat(val);
+  const img = document.getElementById('previewImg');
+  if (img) img.style.transform = `scale(${addZoomLevel})`;
+  const viewer = document.getElementById('addImgViewer');
+  if (viewer) viewer.style.alignItems = addZoomLevel > 1 ? 'flex-start' : 'center';
+}
+function addZoomIn() {
+  const s = document.getElementById('addZoomSlider');
+  if (s) { s.value = Math.min(4, parseFloat(s.value) + 0.3); addZoom(s.value); }
+}
+function addZoomOut() {
+  const s = document.getElementById('addZoomSlider');
+  if (s) { s.value = Math.max(1, parseFloat(s.value) - 0.3); addZoom(s.value); }
+}
+
 function handleFile(file) {
   if (!file) return;
   state.pendingImageFile = file;
@@ -550,12 +592,12 @@ function handleFile(file) {
     state.pendingImageBase64 = e.target.result.split(',')[1];
     document.getElementById('uploadSection').style.display = 'none';
     document.getElementById('previewSection').style.display = 'none';
-    document.getElementById('cropSection').style.display = 'block';
+    document.getElementById('cropSection').style.display = 'flex';
     const cropImg = document.getElementById('cropImg');
     cropImg.src = e.target.result;
     state.zoom = 1;
-    document.getElementById('zoomSlider').value = 1;
-    document.getElementById('zoomVal').textContent = '1×';
+    const zs = document.getElementById('zoomSlider'); if (zs) { zs.value = 1; }
+    const zv = document.getElementById('zoomVal'); if (zv) zv.textContent = '1×';
     applyZoom(1);
   };
   reader.readAsDataURL(file);
@@ -563,7 +605,7 @@ function handleFile(file) {
 
 function applyZoom(val) {
   state.zoom = parseFloat(val);
-  document.getElementById('zoomVal').textContent = parseFloat(val).toFixed(2) + '×';
+  const zv = document.getElementById('zoomVal'); if (zv) zv.textContent = parseFloat(val).toFixed(2) + '×';
   const img = document.getElementById('cropImg');
   if (img) img.style.transform = `scale(${state.zoom})`;
 }
@@ -576,8 +618,11 @@ function confirmCrop() {
   const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
   state.croppedImageBase64 = dataUrl.split(',')[1];
   document.getElementById('cropSection').style.display = 'none';
-  document.getElementById('previewSection').style.display = 'block';
+  document.getElementById('previewSection').style.display = 'flex';
   document.getElementById('previewImg').src = dataUrl;
+  // Reset add zoom
+  addZoomLevel = 1;
+  const s = document.getElementById('addZoomSlider'); if (s) s.value = 1;
   runVisionOCR(state.croppedImageBase64);
 }
 
@@ -870,7 +915,7 @@ async function uploadImageToFolder(file, base64, folderId, filename) {
   const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { Authorization: `Bearer ${state.accessToken}` }, body: form });
   const data = await res.json();
   await makeFilePublic(data.id);
-  return { fileId: data.id, url: `https://drive.google.com/thumbnail?id=${data.id}&sz=w800` };
+  return { fileId: data.id, url: `https://drive.google.com/uc?export=view&id=${data.id}` };
 }
 
 async function makeFilePublic(fileId) {

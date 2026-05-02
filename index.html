@@ -13,20 +13,17 @@
 <div id="app"></div>
 <div class="toast" id="toast"></div>
 
-<!-- Add/Edit Modal -->
+<!-- Add/Edit Modal — wide split screen -->
 <div class="overlay" id="addOverlay">
-  <div class="modal">
-    <div class="modal-header">
-      <span class="modal-title" id="modalTitle">Add Contact</span>
-      <button class="icon-btn" onclick="closeAdd()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <!-- Single upload -->
-      <div id="uploadSection">
-        <!-- Mobile camera buttons -->
-        <div class="camera-actions">
+  <div class="split-modal">
+    <!-- Left: image panel -->
+    <div class="split-img-panel">
+      <div class="split-img-header">
+        <span class="modal-title" style="color:white" id="modalTitle">Add Contact</span>
+      </div>
+      <!-- Upload state -->
+      <div id="uploadSection" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:1.5rem;gap:12px">
+        <div class="camera-actions" style="width:100%">
           <button class="camera-btn" onclick="document.getElementById('cameraInput').click()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
             Take Photo
@@ -36,97 +33,114 @@
             Upload Photo
           </button>
         </div>
-        <!-- Hidden inputs -->
+        <div class="upload-zone desktop-only" id="uploadZone" style="width:100%;background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.2)">
+          <div class="upload-icon" style="background:rgba(255,255,255,0.1)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <strong style="font-size:13px;color:rgba(255,255,255,0.7)">Drop card photo here</strong>
+          <p style="color:rgba(255,255,255,0.4)">or use buttons above</p>
+        </div>
         <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this.files[0])">
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this.files[0])">
-        <!-- Desktop drag & drop -->
-        <div class="upload-zone desktop-only" id="uploadZone">
-          <div class="upload-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-          </div>
-          <strong style="font-size:13px">Drop business card photo here</strong>
-          <p>or use the buttons above to take/upload a photo</p>
-        </div>
       </div>
-      <!-- Crop -->
-      <div id="cropSection" style="display:none">
-        <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:13px;font-weight:500">Adjust & crop</span>
+      <!-- Crop state -->
+      <div id="cropSection" style="display:none;flex-direction:column;flex:1;padding:1rem;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:13px;color:rgba(255,255,255,0.7)">Adjust image</span>
           <div style="display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" onclick="clearFile()">Cancel</button>
+            <button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:white;border:none" onclick="clearFile()">Cancel</button>
             <button class="btn btn-primary btn-sm" onclick="confirmCrop()">Use this image</button>
           </div>
         </div>
-        <div class="crop-container">
+        <div class="crop-container" style="flex:1;max-height:none;height:auto">
           <img id="cropImg" src="" alt="Crop preview">
         </div>
-        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
-          <span style="font-size:12px;color:var(--text-muted)">Zoom</span>
-          <input type="range" id="zoomSlider" min="0.5" max="3" step="0.05" value="1" oninput="applyZoom(this.value)" style="flex:1">
-          <span style="font-size:12px;color:var(--text-muted)" id="zoomVal">1×</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:rgba(255,255,255,0.5)">Zoom</span>
+          <input type="range" id="zoomSlider" min="0.5" max="3" step="0.05" value="1" oninput="applyZoom(this.value)" style="flex:1;accent-color:white">
+          <span style="font-size:12px;color:rgba(255,255,255,0.5)" id="zoomVal">1×</span>
         </div>
       </div>
-      <!-- Preview -->
-      <div id="previewSection" style="display:none">
-        <div class="preview-wrap">
+      <!-- Preview state -->
+      <div id="previewSection" style="display:none;flex-direction:column;flex:1;position:relative;overflow:hidden">
+        <div class="split-img-viewer" id="addImgViewer">
           <img id="previewImg" src="" alt="Card preview">
-          <button class="icon-btn preview-remove" onclick="clearFile()">
+        </div>
+        <div id="scanBanner" style="display:none;position:absolute;bottom:60px;left:12px;right:12px" class="scanning-banner">
+          <span class="spin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-9-9"/></svg></span>
+          Reading card with Vision API…
+        </div>
+        <div class="split-img-controls">
+          <button class="split-zoom-btn" onclick="addZoomOut()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <input type="range" id="addZoomSlider" min="1" max="4" step="0.1" value="1" oninput="addZoom(this.value)" style="flex:1;accent-color:white">
+          <button class="split-zoom-btn" onclick="addZoomIn()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <button class="split-zoom-btn" onclick="clearFile()" title="Remove image">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
-        <div id="scanBanner" style="display:none" class="scanning-banner">
-          <span class="spin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-9-9"/></svg></span>
-          Reading card with Google Vision API…
-        </div>
-      </div>
-      <!-- Form -->
-      <div class="form-grid" style="margin-top:1rem">
-        <div class="fg"><label>First Name</label><input type="text" id="f_firstName" placeholder="Jane"></div>
-        <div class="fg"><label>Last Name</label><input type="text" id="f_lastName" placeholder="Smith"></div>
-        <div class="fg full"><label>Job Title</label><input type="text" id="f_title" placeholder="Head of Partnerships"></div>
-        <div class="fg full"><label>Job Function</label><input type="text" id="f_function" placeholder="Sales, Business Development, Engineering…"></div>
-        <div class="fg full"><label>Company</label><input type="text" id="f_company" placeholder="Acme Corp"></div>
-        <div class="fg"><label>Email</label><input type="text" id="f_email" placeholder="jane@acme.com"></div>
-        <div class="fg"><label>Phone</label><input type="text" id="f_phone" placeholder="+65 9123 4567"></div>
-        <div class="fg full"><label>Address</label><input type="text" id="f_address" placeholder="10 Anson Road, Singapore"></div>
-        <div class="fg full"><label>Website</label><input type="text" id="f_website" placeholder="acme.com"></div>
-        <hr class="section-divider">
-        <div class="fg"><label>Industry</label>
-          <select id="f_industry">
-            <option value="">— Select —</option>
-            <option>Technology</option><option>Finance</option><option>Healthcare</option>
-            <option>Energy</option><option>Real Estate</option><option>Manufacturing</option>
-            <option>Consulting</option><option>Government</option><option>Retail</option>
-            <option>Media</option><option>Education</option><option>Other</option>
-          </select>
-        </div>
-        <div class="fg"><label>Region</label>
-          <select id="f_region">
-            <option value="">— Select —</option>
-            <option>Singapore</option><option>Southeast Asia</option><option>South Asia</option>
-            <option>East Asia</option><option>Middle East</option><option>Europe</option>
-            <option>North America</option><option>Australia / NZ</option><option>Africa</option>
-          </select>
-        </div>
-        <div class="fg full"><label>Influence Level</label>
-          <select id="f_influence">
-            <option value="">— Select —</option>
-            <option value="high">High — Decision maker / C-suite</option>
-            <option value="mid">Mid — Senior manager / Director</option>
-            <option value="low">Low — Operational contact</option>
-          </select>
-        </div>
-        <div class="fg full"><label>Notes</label>
-          <textarea id="f_notes" placeholder="Context, how you met, follow-up actions…"></textarea>
-        </div>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeAdd()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveContact()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Save Contact
-      </button>
+    <!-- Right: form -->
+    <div class="split-form-panel">
+      <div class="split-form-header">
+        <span style="font-size:13px;color:var(--text-muted)">Contact details</span>
+        <button class="icon-btn" onclick="closeAdd()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="split-form-body">
+        <div class="form-grid">
+          <div class="fg"><label>First Name</label><input type="text" id="f_firstName" placeholder="Jane"></div>
+          <div class="fg"><label>Last Name</label><input type="text" id="f_lastName" placeholder="Smith"></div>
+          <div class="fg full"><label>Job Title</label><input type="text" id="f_title" placeholder="Head of Partnerships"></div>
+          <div class="fg full"><label>Job Function</label><input type="text" id="f_function" placeholder="Sales, Business Development, Engineering…"></div>
+          <div class="fg full"><label>Company</label><input type="text" id="f_company" placeholder="Acme Corp"></div>
+          <div class="fg"><label>Email</label><input type="text" id="f_email" placeholder="jane@acme.com"></div>
+          <div class="fg"><label>Phone</label><input type="text" id="f_phone" placeholder="+65 9123 4567"></div>
+          <div class="fg full"><label>Address</label><input type="text" id="f_address" placeholder="10 Anson Road, Singapore"></div>
+          <div class="fg full"><label>Website</label><input type="text" id="f_website" placeholder="acme.com"></div>
+          <hr class="section-divider">
+          <div class="fg"><label>Industry</label>
+            <select id="f_industry">
+              <option value="">— Select —</option>
+              <option>Technology</option><option>Finance</option><option>Healthcare</option>
+              <option>Energy</option><option>Real Estate</option><option>Manufacturing</option>
+              <option>Consulting</option><option>Government</option><option>Retail</option>
+              <option>Media</option><option>Education</option><option>Other</option>
+            </select>
+          </div>
+          <div class="fg"><label>Region</label>
+            <select id="f_region">
+              <option value="">— Select —</option>
+              <option>Singapore</option><option>Southeast Asia</option><option>South Asia</option>
+              <option>East Asia</option><option>Middle East</option><option>Europe</option>
+              <option>North America</option><option>Australia / NZ</option><option>Africa</option>
+            </select>
+          </div>
+          <div class="fg full"><label>Influence Level</label>
+            <select id="f_influence">
+              <option value="">— Select —</option>
+              <option value="high">High — Decision maker / C-suite</option>
+              <option value="mid">Mid — Senior manager / Director</option>
+              <option value="low">Low — Operational contact</option>
+            </select>
+          </div>
+          <div class="fg full"><label>Notes</label>
+            <textarea id="f_notes" placeholder="Context, how you met, follow-up actions…"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="split-form-footer">
+        <button class="btn btn-ghost" onclick="closeAdd()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveContact()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save Contact
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -176,70 +190,86 @@
   </div>
 </div>
 
-<!-- Review Modal -->
+<!-- Review Modal — wide split screen -->
 <div class="overlay" id="reviewOverlay">
-  <div class="modal">
-    <div class="modal-header">
-      <div>
-        <span class="modal-title" id="reviewTitle">Review Card</span>
-        <span id="reviewCounter" style="font-size:12px;color:var(--text-hint);margin-left:8px"></span>
+  <div class="split-modal">
+    <!-- Left: card image -->
+    <div class="split-img-panel">
+      <div class="split-img-header">
+        <span class="modal-title" style="color:white" id="reviewTitle">Review Card</span>
+        <span id="reviewCounter" style="font-size:12px;color:rgba(255,255,255,0.6);margin-left:8px"></span>
       </div>
-      <button class="icon-btn" onclick="closeReview()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div class="review-img-wrap" id="reviewImgWrap">
-        <img id="reviewImg" src="" alt="Card" onclick="this.classList.toggle('zoomed')" title="Click to zoom">
-        <span class="review-img-hint">Click image to zoom</span>
+      <div class="split-img-viewer" id="splitImgViewer">
+        <img id="reviewImg" src="" alt="Card">
       </div>
-      <div class="form-grid">
-        <div class="fg"><label>First Name</label><input type="text" id="r_firstName" placeholder="Jane"></div>
-        <div class="fg"><label>Last Name</label><input type="text" id="r_lastName" placeholder="Smith"></div>
-        <div class="fg full"><label>Job Title</label><input type="text" id="r_title" placeholder="Head of Partnerships"></div>
-        <div class="fg full"><label>Job Function</label><input type="text" id="r_function" placeholder="Sales, Business Development, Engineering…"></div>
-        <div class="fg full"><label>Company</label><input type="text" id="r_company" placeholder="Acme Corp"></div>
-        <div class="fg"><label>Email</label><input type="text" id="r_email" placeholder="jane@acme.com"></div>
-        <div class="fg"><label>Phone</label><input type="text" id="r_phone" placeholder="+65 9123 4567"></div>
-        <div class="fg full"><label>Address</label><input type="text" id="r_address" placeholder="10 Anson Road, Singapore"></div>
-        <div class="fg full"><label>Website</label><input type="text" id="r_website" placeholder="acme.com"></div>
-        <hr class="section-divider">
-        <div class="fg"><label>Industry</label>
-          <select id="r_industry">
-            <option value="">— Select —</option>
-            <option>Technology</option><option>Finance</option><option>Healthcare</option>
-            <option>Energy</option><option>Real Estate</option><option>Manufacturing</option>
-            <option>Consulting</option><option>Government</option><option>Retail</option>
-            <option>Media</option><option>Education</option><option>Other</option>
-          </select>
-        </div>
-        <div class="fg"><label>Region</label>
-          <select id="r_region">
-            <option value="">— Select —</option>
-            <option>Singapore</option><option>Southeast Asia</option><option>South Asia</option>
-            <option>East Asia</option><option>Middle East</option><option>Europe</option>
-            <option>North America</option><option>Australia / NZ</option><option>Africa</option>
-          </select>
-        </div>
-        <div class="fg full"><label>Influence Level</label>
-          <select id="r_influence">
-            <option value="">— Select —</option>
-            <option value="high">High — Decision maker / C-suite</option>
-            <option value="mid">Mid — Senior manager / Director</option>
-            <option value="low">Low — Operational contact</option>
-          </select>
-        </div>
-        <div class="fg full"><label>Notes</label>
-          <textarea id="r_notes" placeholder="Context, how you met, follow-up actions…"></textarea>
-        </div>
+      <div class="split-img-controls">
+        <button class="split-zoom-btn" onclick="reviewZoomOut()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <input type="range" id="reviewZoomSlider" min="1" max="4" step="0.1" value="1" oninput="reviewZoom(this.value)" style="flex:1;accent-color:white">
+        <button class="split-zoom-btn" onclick="reviewZoomIn()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <span style="font-size:11px;color:rgba(255,255,255,0.5);min-width:32px;text-align:right" id="reviewZoomLabel">1×</span>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="skipReview()">Skip for now</button>
-      <button class="btn btn-primary" onclick="saveReviewed()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Save & Next
-      </button>
+    <!-- Right: form -->
+    <div class="split-form-panel">
+      <div class="split-form-header">
+        <span style="font-size:13px;color:var(--text-muted)">Fill in contact details</span>
+        <button class="icon-btn" onclick="closeReview()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="split-form-body">
+        <div class="form-grid">
+          <div class="fg"><label>First Name</label><input type="text" id="r_firstName" placeholder="Jane"></div>
+          <div class="fg"><label>Last Name</label><input type="text" id="r_lastName" placeholder="Smith"></div>
+          <div class="fg full"><label>Job Title</label><input type="text" id="r_title" placeholder="Head of Partnerships"></div>
+          <div class="fg full"><label>Job Function</label><input type="text" id="r_function" placeholder="Sales, Business Development, Engineering…"></div>
+          <div class="fg full"><label>Company</label><input type="text" id="r_company" placeholder="Acme Corp"></div>
+          <div class="fg"><label>Email</label><input type="text" id="r_email" placeholder="jane@acme.com"></div>
+          <div class="fg"><label>Phone</label><input type="text" id="r_phone" placeholder="+65 9123 4567"></div>
+          <div class="fg full"><label>Address</label><input type="text" id="r_address" placeholder="10 Anson Road, Singapore"></div>
+          <div class="fg full"><label>Website</label><input type="text" id="r_website" placeholder="acme.com"></div>
+          <hr class="section-divider">
+          <div class="fg"><label>Industry</label>
+            <select id="r_industry">
+              <option value="">— Select —</option>
+              <option>Technology</option><option>Finance</option><option>Healthcare</option>
+              <option>Energy</option><option>Real Estate</option><option>Manufacturing</option>
+              <option>Consulting</option><option>Government</option><option>Retail</option>
+              <option>Media</option><option>Education</option><option>Other</option>
+            </select>
+          </div>
+          <div class="fg"><label>Region</label>
+            <select id="r_region">
+              <option value="">— Select —</option>
+              <option>Singapore</option><option>Southeast Asia</option><option>South Asia</option>
+              <option>East Asia</option><option>Middle East</option><option>Europe</option>
+              <option>North America</option><option>Australia / NZ</option><option>Africa</option>
+            </select>
+          </div>
+          <div class="fg full"><label>Influence Level</label>
+            <select id="r_influence">
+              <option value="">— Select —</option>
+              <option value="high">High — Decision maker / C-suite</option>
+              <option value="mid">Mid — Senior manager / Director</option>
+              <option value="low">Low — Operational contact</option>
+            </select>
+          </div>
+          <div class="fg full"><label>Notes</label>
+            <textarea id="r_notes" placeholder="Context, how you met, follow-up actions…"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="split-form-footer">
+        <button class="btn btn-ghost" onclick="skipReview()">Skip for now</button>
+        <button class="btn btn-primary" onclick="saveReviewed()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save & Next
+        </button>
+      </div>
     </div>
   </div>
 </div>
