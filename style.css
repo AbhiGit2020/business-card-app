@@ -388,6 +388,27 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
   .user-chip span { display: none; }
   .header-right { gap: 6px; }
 }
+
+/* ── Sort toggle ── */
+.sort-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.sort-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 12px; font-family: var(--sans); background: transparent; border: none; cursor: pointer; color: var(--text-muted); transition: all 0.15s; white-space: nowrap; }
+.sort-btn:first-child { border-right: 1px solid var(--border); }
+.sort-btn:hover { background: var(--surface2); color: var(--text); }
+.sort-btn.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+
+/* ── Drive links ── */
+.card-name-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 1px; }
+.card-drive-link { flex-shrink: 0; width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--text-hint); transition: all 0.15s; background: var(--surface2); }
+.card-drive-link:hover { color: var(--accent); background: var(--accent-light); }
+.list-name-row { display: flex; align-items: center; gap: 6px; }
+.list-drive-link { flex-shrink: 0; width: 18px; height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--text-hint); transition: all 0.15s; }
+.list-drive-link:hover { color: var(--accent); background: var(--accent-light); }
+
+/* ── Company grouping ── */
+.company-group { margin-bottom: 1.5rem; }
+.company-group-label { font-size: 11px; font-weight: 500; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.07em; padding: 0 2px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.list-company-header { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--surface2); font-size: 13px; font-weight: 500; color: var(--text); border-bottom: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
 .auth-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 54px); padding: 2rem; text-align: center; }
 .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2.5rem; max-width: 380px; width: 100%; box-shadow: var(--shadow); }
 .auth-logo { font-family: var(--serif); font-size: 28px; margin-bottom: 6px; }

@@ -11,10 +11,11 @@ const CONFIG = {
 let state = {
   contacts: [],
   unprocessed: [],       // { id, filename, driveFileId, driveImageUrl, scannedData, status }
-  view: 'grid',
+  view: 'list',
   tab: 'contacts',       // 'contacts' | 'unprocessed'
   filter: 'all',
   search: '',
+  sortBy: 'company',
   savedFolderId: null,
   inboxFolderId: null,
   driveFolderUrl: null,
@@ -214,7 +215,8 @@ function renderMain() {
 function renderContacts() {
   const main = document.getElementById('mainContent');
   if (!main) return;
-  const contacts = state.contacts.filter(c => {
+
+  let contacts = state.contacts.filter(c => {
     const mf = state.filter === 'all' || c.industry === state.filter || c.influence === state.filter;
     if (!mf) return false;
     if (state.search) {
@@ -224,11 +226,42 @@ function renderContacts() {
     return true;
   });
 
+  // ── Sort ──
+  const sortBy = state.sortBy || 'company';
+  contacts = [...contacts].sort((a, b) => {
+    if (sortBy === 'company') {
+      const ca = (a.company || '').toLowerCase();
+      const cb = (b.company || '').toLowerCase();
+      if (ca !== cb) return ca.localeCompare(cb);
+      // Within same company sort by name
+      return ((a.firstName || '') + (a.lastName || '')).toLowerCase()
+        .localeCompare(((b.firstName || '') + (b.lastName || '')).toLowerCase());
+    } else {
+      // Sort by name
+      const na = ((a.firstName || '') + ' ' + (a.lastName || '')).toLowerCase().trim();
+      const nb = ((b.firstName || '') + ' ' + (b.lastName || '')).toLowerCase().trim();
+      return na.localeCompare(nb);
+    }
+  });
+
   const filterLabel = state.filter === 'all' ? 'All Contacts' : state.filter;
+  const sortByCompany = sortBy === 'company';
+
   let html = `
     <div class="main-top">
       <h2 class="main-title">${escHtml(filterLabel)} <span style="font-family:var(--sans);font-size:14px;color:var(--text-hint);font-weight:300">(${contacts.length})</span></h2>
       <div class="main-actions">
+        <!-- Sort toggle -->
+        <div class="sort-toggle">
+          <button class="sort-btn ${sortByCompany ? 'active' : ''}" onclick="setSort('company')" title="Sort by company">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M3 3h18"/></svg>
+            Company
+          </button>
+          <button class="sort-btn ${!sortByCompany ? 'active' : ''}" onclick="setSort('name')" title="Sort by name">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h6"/></svg>
+            Name
+          </button>
+        </div>
         <div style="display:flex;gap:4px">
           <button class="icon-btn ${state.view === 'grid' ? 'active' : ''}" onclick="setView('grid')" title="Grid">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -252,12 +285,29 @@ function renderContacts() {
       ${state.contacts.length === 0 ? '<button class="btn btn-primary" onclick="openAdd()">Add your first card</button>' : ''}
     </div>`;
   } else if (state.view === 'grid') {
-    html += `<div class="grid">${contacts.map(renderCardTile).join('')}</div>`;
+    // Group by company when sorting by company
+    if (sortByCompany) {
+      const groups = {};
+      contacts.forEach(c => {
+        const key = c.company || '—';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(c);
+      });
+      html += Object.entries(groups).map(([company, members]) => `
+        <div class="company-group">
+          <div class="company-group-label">${escHtml(company)}</div>
+          <div class="grid">${members.map(renderCardTile).join('')}</div>
+        </div>`).join('');
+    } else {
+      html += `<div class="grid">${contacts.map(renderCardTile).join('')}</div>`;
+    }
   } else {
-    html += renderListView(contacts);
+    html += renderListView(contacts, sortByCompany);
   }
   main.innerHTML = html;
 }
+
+function setSort(by) { state.sortBy = by; renderContacts(); }
 
 function renderCardTile(c) {
   const imgHtml = c.driveImageUrl
@@ -266,10 +316,17 @@ function renderCardTile(c) {
   const iTag = c.influence ? `<span class="tag tag-${c.influence === 'high' ? 'gold' : c.influence === 'mid' ? 'green' : 'gray'}">${c.influence}</span>` : '';
   const indTag = c.industry ? `<span class="tag tag-green">${escHtml(c.industry)}</span>` : '';
   const rTag = c.region ? `<span class="tag tag-gray">${escHtml(c.region)}</span>` : '';
+  const driveLink = c.driveImageId
+    ? `<a href="https://drive.google.com/file/d/${c.driveImageId}/view" target="_blank" onclick="event.stopPropagation()" class="card-drive-link" title="View in Google Drive">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      </a>` : '';
   return `<div class="contact-card" onclick="openDetail('${c.id}')">
     <div class="card-img">${imgHtml}</div>
     <div class="card-body">
-      <div class="card-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div>
+      <div class="card-name-row">
+        <div class="card-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div>
+        ${driveLink}
+      </div>
       <div class="card-role">${escHtml(c.title || '')}</div>
       <div class="card-company">${escHtml(c.company || '')}</div>
       <div class="card-tags">${iTag}${indTag}${rTag}</div>
@@ -277,21 +334,54 @@ function renderCardTile(c) {
   </div>`;
 }
 
-function renderListView(contacts) {
-  let html = `<div class="list-view"><div class="list-header"><div></div><div>Name</div><div>Company</div><div>Industry</div><div>Region</div><div>Influence</div></div>`;
-  contacts.forEach(c => {
+function renderListView(contacts, groupByCompany = false) {
+  // Group by company if sorting by company
+  const renderRows = (rows) => rows.map(c => {
     const img = c.driveImageUrl ? `<img src="${escHtml(c.driveImageUrl)}" alt="" loading="lazy">` : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-hint)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`;
     const iTag = c.influence ? `<span class="tag tag-${c.influence === 'high' ? 'gold' : c.influence === 'mid' ? 'green' : 'gray'}">${c.influence}</span>` : '—';
-    html += `<div class="list-row" onclick="openDetail('${c.id}')">
+    const driveLink = c.driveImageId
+      ? `<a href="https://drive.google.com/file/d/${c.driveImageId}/view" target="_blank" onclick="event.stopPropagation()" class="list-drive-link" title="View card in Drive">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        </a>` : '';
+    return `<div class="list-row" onclick="openDetail('${c.id}')">
       <div class="list-thumb">${img}</div>
-      <div><div class="list-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div><div class="list-sub">${escHtml(c.title || '')}</div></div>
+      <div>
+        <div class="list-name-row">
+          <span class="list-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</span>
+          ${driveLink}
+        </div>
+        <div class="list-sub">${escHtml(c.title || '')}</div>
+      </div>
       <div class="list-cell" style="font-family:var(--mono);font-size:11px">${escHtml(c.company || '—')}</div>
       <div class="list-cell">${escHtml(c.industry || '—')}</div>
       <div class="list-cell">${escHtml(c.region || '—')}</div>
       <div class="list-cell">${iTag}</div>
     </div>`;
-  });
-  return html + `</div>`;
+  }).join('');
+
+  if (groupByCompany) {
+    const groups = {};
+    contacts.forEach(c => {
+      const key = c.company || '—';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    });
+    return Object.entries(groups).map(([company, members]) => `
+      <div class="list-view" style="margin-bottom:12px">
+        <div class="list-company-header">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          ${escHtml(company)}
+          <span style="font-size:11px;font-weight:400;color:var(--text-hint);margin-left:6px">${members.length} contact${members.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="list-header"><div></div><div>Name</div><div>Company</div><div>Industry</div><div>Region</div><div>Influence</div></div>
+        ${renderRows(members)}
+      </div>`).join('');
+  }
+
+  return `<div class="list-view">
+    <div class="list-header"><div></div><div>Name</div><div>Company</div><div>Industry</div><div>Region</div><div>Influence</div></div>
+    ${renderRows(contacts)}
+  </div>`;
 }
 
 function setView(v) { state.view = v; renderContacts(); }
