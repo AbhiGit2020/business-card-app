@@ -53,12 +53,24 @@ async function tryAutoLogin() {
     await loadContactsFromDrive();
     await loadUnprocessedFromDrive();
     renderApp();
-  } catch(e) {
-    // Token expired — clear and show login
-    sessionStorage.removeItem('connexa-token');
-    state.accessToken = null;
-    renderApp();
+  } catch (e) {
+    if (isAuthError(e)) {
+      // Token actually expired/revoked — clear and show login
+      sessionStorage.removeItem('connexa-token');
+      state.accessToken = null;
+      renderApp();
+    } else {
+      // Transient error (network, rate limit, etc) — keep the token, let the user retry
+      renderApp();
+      showToast('Could not reach Google Drive — please retry', true);
+    }
   }
+}
+
+// A 401/403 means the token is actually invalid; anything else (network blip, 5xx, rate limit)
+// should not force the user to log in again.
+function isAuthError(e) {
+  return /Drive \w+: (401|403)/.test(e?.message || '');
 }
 
 // ── Boot ──
@@ -732,6 +744,10 @@ async function visionOCR(base64) {
     body: JSON.stringify({ requests: [{ image: { content: base64 }, features: [{ type: 'TEXT_DETECTION', maxResults: 1 }] }] })
   });
   const data = await res.json();
+  // The API can return 200 with a per-request error (e.g. billing disabled, quota, bad key) —
+  // don't treat that the same as "no text found on the card".
+  const requestError = data.error || data.responses?.[0]?.error;
+  if (requestError) throw new Error(requestError.message || 'Vision API request failed');
   return data.responses?.[0]?.fullTextAnnotation?.text || '';
 }
 
@@ -885,21 +901,28 @@ function loadScript(src) {
 
 async function signIn() {
   await loadScript('https://accounts.google.com/gsi/client');
-  await new Promise(resolve => {
-    if (window.gapi?.client) { resolve(); return; }
-    loadScript('https://apis.google.com/js/api.js').then(() => gapi.load('client', () => gapi.client.init({}).then(resolve)));
-  });
   state.tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.OAUTH_CLIENT_ID, scope: CONFIG.SCOPES,
     callback: async resp => {
       if (resp.error) { showToast('Sign in failed', true); return; }
       state.accessToken = resp.access_token;
       sessionStorage.setItem('connexa-token', resp.access_token);
-      await fetchUserInfo();
-      await ensureFolders();
-      await loadContactsFromDrive();
-      await loadUnprocessedFromDrive();
-      renderApp();
+      try {
+        await fetchUserInfo();
+        await ensureFolders();
+        await loadContactsFromDrive();
+        await loadUnprocessedFromDrive();
+        renderApp();
+      } catch (e) {
+        // Don't silently strand the user on the login screen — surface the failure
+        // and drop the token only if it was actually rejected, not on a transient error.
+        if (isAuthError(e)) {
+          sessionStorage.removeItem('connexa-token');
+          state.accessToken = null;
+        }
+        renderApp();
+        showToast('Sign in succeeded but loading your data failed — please retry', true);
+      }
     }
   });
   state.tokenClient.requestAccessToken();
