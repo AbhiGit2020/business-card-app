@@ -323,7 +323,7 @@ function setSort(by) { state.sortBy = by; renderContacts(); }
 
 function renderCardTile(c) {
   const imgHtml = c.driveImageUrl
-    ? `<img src="${escHtml(c.driveImageUrl)}" alt="Card" loading="lazy">`
+    ? `<img src="${escHtml(c.driveImageUrl)}" alt="Card" loading="lazy" referrerpolicy="no-referrer">`
     : `<div class="card-img-ph"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg><span>No image</span></div>`;
   const iTag = c.influence ? `<span class="tag tag-${c.influence === 'high' ? 'gold' : c.influence === 'mid' ? 'green' : 'gray'}">${c.influence}</span>` : '';
   const indTag = c.industry ? `<span class="tag tag-green">${escHtml(c.industry)}</span>` : '';
@@ -349,7 +349,7 @@ function renderCardTile(c) {
 function renderListView(contacts, groupByCompany = false) {
   // Group by company if sorting by company
   const renderRows = (rows) => rows.map(c => {
-    const img = c.driveImageUrl ? `<img src="${escHtml(c.driveImageUrl)}" alt="" loading="lazy">` : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-hint)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`;
+    const img = c.driveImageUrl ? `<img src="${escHtml(c.driveImageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-hint)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`;
     const iTag = c.influence ? `<span class="tag tag-${c.influence === 'high' ? 'gold' : c.influence === 'mid' ? 'green' : 'gray'}">${c.influence}</span>` : '—';
     const driveLink = c.driveImageId
       ? `<a href="https://drive.google.com/file/d/${c.driveImageId}/view" target="_blank" onclick="event.stopPropagation()" class="list-drive-link" title="View card in Drive">
@@ -435,7 +435,7 @@ function renderUnprocessed() {
       const company = u.scannedData?.company || '';
       html += `<div class="unprocessed-card">
         <div class="unprocessed-thumb">
-          ${u.driveImageUrl ? `<img src="${escHtml(u.driveImageUrl)}" alt="Card">` : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-hint)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`}
+          ${u.driveImageUrl ? `<img src="${escHtml(u.driveImageUrl)}" alt="Card" referrerpolicy="no-referrer">` : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-hint)"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`}
         </div>
         <div class="unprocessed-info">
           <div class="unprocessed-name">${escHtml(name)}</div>
@@ -577,7 +577,7 @@ async function saveReviewed() {
   try {
     showToast('Saving contact…');
     const newFileId = await copyDriveFile(u.driveFileId, newFilename, state.savedFolderId);
-    const imageUrl = `https://drive.google.com/uc?export=view&id=${newFileId}`;
+    const imageUrl = `https://drive.google.com/thumbnail?id=${newFileId}&sz=w1000`;
     await makeFilePublic(newFileId);
     await deleteDriveFile(u.driveFileId);
 
@@ -837,7 +837,7 @@ function openDetail(id) {
   const c = state.contacts.find(x => x.id === id);
   if (!c) return;
   const imgPanel = c.driveImageUrl
-    ? `<div class="detail-img-panel" onclick="this.classList.toggle('zoomed')" title="Click to zoom"><img src="${escHtml(c.driveImageUrl)}" alt="Business card"><div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,0.4);color:white;padding:3px 8px;border-radius:6px;font-size:11px;pointer-events:none">Click to zoom</div></div>`
+    ? `<div class="detail-img-panel" onclick="this.classList.toggle('zoomed')" title="Click to zoom"><img src="${escHtml(c.driveImageUrl)}" alt="Business card" referrerpolicy="no-referrer"><div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,0.4);color:white;padding:3px 8px;border-radius:6px;font-size:11px;pointer-events:none">Click to zoom</div></div>`
     : `<div class="detail-img-panel"><div class="detail-no-img"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>No card image</div></div>`;
 
   const rows = [
@@ -970,11 +970,20 @@ async function ensureFolders() {
   state.driveFolderUrl = `https://drive.google.com/drive/folders/${rootId}`;
 }
 
+// Old uploads stored an "uc?export=view" link, which Google's hotlink protection blocks
+// when loaded from an <img> tag (it only works via direct navigation). Rewrite to the
+// thumbnail endpoint, which embeds reliably.
+function normalizeDriveImageUrl(url) {
+  const m = url?.match(/[?&]id=([^&]+)/);
+  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000` : url;
+}
+
 async function loadContactsFromDrive() {
   const res = await driveApi(`/drive/v3/files?q='${state.savedFolderId}' in parents and name='contacts.json' and trashed=false&fields=files(id)`);
   if (!res.files?.length) return;
   const content = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, { headers: { Authorization: `Bearer ${state.accessToken}` } });
   state.contacts = await content.json();
+  state.contacts.forEach(c => { if (c.driveImageUrl) c.driveImageUrl = normalizeDriveImageUrl(c.driveImageUrl); });
 }
 
 async function saveContactsToDrive() {
@@ -995,6 +1004,7 @@ async function loadUnprocessedFromDrive() {
   if (!res.files?.length) return;
   const content = await fetch(`https://www.googleapis.com/drive/v3/files/${res.files[0].id}?alt=media`, { headers: { Authorization: `Bearer ${state.accessToken}` } });
   state.unprocessed = await content.json();
+  state.unprocessed.forEach(u => { if (u.driveImageUrl) u.driveImageUrl = normalizeDriveImageUrl(u.driveImageUrl); });
 }
 
 async function saveUnprocessedToDrive() {
@@ -1028,7 +1038,7 @@ async function uploadImageToFolder(file, base64, folderId, filename) {
   const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: { Authorization: `Bearer ${state.accessToken}` }, body: form });
   const data = await res.json();
   await makeFilePublic(data.id);
-  return { fileId: data.id, url: `https://drive.google.com/uc?export=view&id=${data.id}` };
+  return { fileId: data.id, url: `https://drive.google.com/thumbnail?id=${data.id}&sz=w1000` };
 }
 
 async function makeFilePublic(fileId) {
