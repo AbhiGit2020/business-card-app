@@ -683,6 +683,7 @@ function setupCropTool(name, containerId, imgId, boxId) {
 
   function startDrag(mode) {
     return e => {
+      if (!cropTools[name].rect) return; // image hasn't finished loading yet
       e.preventDefault(); e.stopPropagation();
       const p = getPoint(e);
       const startX = p.clientX, startY = p.clientY;
@@ -747,8 +748,11 @@ async function rotateCropImage(name) {
   if (name !== 'add') return;
   state.pendingImageBase64 = await rotateBase64Image(state.pendingImageBase64);
   const cropImg = document.getElementById('cropImg');
-  cropImg.onload = () => resetCropBox('add');
-  cropImg.src = 'data:image/jpeg;base64,' + state.pendingImageBase64;
+  await new Promise(resolve => {
+    cropImg.onload = resolve;
+    cropImg.src = 'data:image/jpeg;base64,' + state.pendingImageBase64;
+  });
+  resetCropBox('add');
 }
 
 // -- Bulk review rotate/crop --
@@ -773,15 +777,27 @@ async function rotateReviewImage() {
 }
 
 async function openReviewCrop() {
+  showToast('Loading image…');
   const base64 = await ensureReviewEditLoaded();
-  if (!base64) return;
+  if (!base64) return; // ensureReviewEditLoaded already toasted the failure
+
   document.getElementById('splitImgViewer').style.display = 'none';
   document.getElementById('reviewControlsNormal').style.display = 'none';
   document.getElementById('reviewCropContainer').style.display = 'flex';
   document.getElementById('reviewControlsCrop').style.display = 'flex';
+
   const cropImg = document.getElementById('reviewCropImg');
-  cropImg.onload = () => resetCropBox('review');
-  cropImg.src = 'data:image/jpeg;base64,' + base64;
+  try {
+    await new Promise((resolve, reject) => {
+      cropImg.onload = resolve;
+      cropImg.onerror = () => reject(new Error('Could not decode this image'));
+      cropImg.src = 'data:image/jpeg;base64,' + base64;
+    });
+    resetCropBox('review');
+  } catch (e) {
+    showToast(e.message, true);
+    cancelReviewCrop();
+  }
 }
 
 function cancelReviewCrop() {
@@ -791,11 +807,36 @@ function cancelReviewCrop() {
   document.getElementById('reviewControlsNormal').style.display = 'flex';
 }
 
-function applyReviewCrop() {
+// Applies the crop, then re-runs OCR on the cropped image so the extracted fields reflect
+// what the user actually kept (a rotated/cropped card often reads very differently).
+async function applyReviewCrop() {
+  const t = cropTools.review;
+  if (!t?.rect) { showToast('Image is still loading — try again in a moment', true); return; }
   const dataUrl = cropToDataUrl('review', document.getElementById('reviewCropImg'));
   reviewEdit.base64 = dataUrl.split(',')[1];
   document.getElementById('reviewImg').src = dataUrl;
   cancelReviewCrop();
+  await rescanReviewImage();
+}
+
+// Re-runs OCR against whatever the currently edited (rotated/cropped) review image is,
+// and fills the review form with the freshly extracted fields.
+async function rescanReviewImage() {
+  const u = state.unprocessed[state.reviewIndex];
+  if (!u) return;
+  const base64 = await ensureReviewEditLoaded();
+  if (!base64) return;
+  showToast('Re-scanning…');
+  try {
+    const text = await visionOCR(reviewEdit.base64);
+    const parsed = text ? parseCardTextToObject(text) : {};
+    u.scannedData = parsed;
+    const R_FIELDS = ['firstName', 'lastName', 'title', 'function', 'company', 'email', 'phone', 'address', 'website', 'industry', 'region', 'influence', 'notes'];
+    R_FIELDS.forEach(f => { const el = document.getElementById('r_' + f); if (el) el.value = parsed[f] || ''; });
+    showToast(text ? 'Re-scanned — please verify the details' : 'No text detected — please fill in manually', !text);
+  } catch (e) {
+    showToast('Re-scan failed: ' + e.message, true);
+  }
 }
 
 async function updateDriveFileImage(fileId, base64) {
@@ -957,6 +998,7 @@ function handleFile(file) {
 }
 
 function confirmCrop() {
+  if (!cropTools.add?.rect) { showToast('Image is still loading — try again in a moment', true); return; }
   const img = document.getElementById('cropImg');
   const dataUrl = cropToDataUrl('add', img);
   state.croppedImageBase64 = dataUrl.split(',')[1];
