@@ -26,7 +26,6 @@ let state = {
   pendingImageBase64: null,
   croppedImageBase64: null,
   tokenClient: null,
-  zoom: 1,
   reviewIndex: 0
 };
 
@@ -240,7 +239,10 @@ function renderContacts() {
 
   // ── Sort ──
   const sortBy = state.sortBy || 'company';
+  const priority = c => c.flagged ? 0 : c.starred ? 1 : 2;
   contacts = [...contacts].sort((a, b) => {
+    const pa = priority(a), pb = priority(b);
+    if (pa !== pb) return pa - pb;
     if (sortBy === 'company') {
       const ca = (a.company || '').toLowerCase();
       const cb = (b.company || '').toLowerCase();
@@ -321,6 +323,34 @@ function renderContacts() {
 
 function setSort(by) { state.sortBy = by; renderContacts(); }
 
+// ── Flag (contact immediately) / Star (favourite) ──
+async function toggleFlag(id, e) {
+  e?.stopPropagation();
+  const c = state.contacts.find(x => x.id === id);
+  if (!c) return;
+  c.flagged = !c.flagged;
+  await saveContactsToDrive();
+  if (document.getElementById('detailOverlay')?.classList.contains('open')) openDetail(id);
+  renderContacts();
+}
+async function toggleStar(id, e) {
+  e?.stopPropagation();
+  const c = state.contacts.find(x => x.id === id);
+  if (!c) return;
+  c.starred = !c.starred;
+  await saveContactsToDrive();
+  if (document.getElementById('detailOverlay')?.classList.contains('open')) openDetail(id);
+  renderContacts();
+}
+function flagStarButtons(c) {
+  return `<button class="flag-btn ${c.flagged ? 'active' : ''}" onclick="toggleFlag('${c.id}', event)" title="${c.flagged ? 'Unflag' : 'Flag — contact immediately'}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="${c.flagged ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+    </button>
+    <button class="star-btn ${c.starred ? 'active' : ''}" onclick="toggleStar('${c.id}', event)" title="${c.starred ? 'Unstar' : 'Star — favourite'}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="${c.starred ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    </button>`;
+}
+
 function renderCardTile(c) {
   const imgHtml = c.driveImageUrl
     ? `<img src="${escHtml(c.driveImageUrl)}" alt="Card" loading="lazy" referrerpolicy="no-referrer">`
@@ -333,7 +363,7 @@ function renderCardTile(c) {
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
       </a>` : '';
   return `<div class="contact-card" onclick="openDetail('${c.id}')">
-    <div class="card-img">${imgHtml}</div>
+    <div class="card-img">${imgHtml}<div class="card-flagstar">${flagStarButtons(c)}</div></div>
     <div class="card-body">
       <div class="card-name-row">
         <div class="card-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div>
@@ -361,6 +391,7 @@ function renderListView(contacts, groupByCompany = false) {
         <div class="list-name-row">
           <span class="list-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</span>
           ${driveLink}
+          <span class="list-flagstar">${flagStarButtons(c)}</span>
         </div>
         <div class="list-sub">${escHtml(c.title || '')}</div>
       </div>
@@ -566,7 +597,8 @@ function openReviewAt(idx) {
 
   document.getElementById('reviewTitle').textContent = 'Review Card';
   document.getElementById('reviewCounter').textContent = `${readyIdx} of ${readyItems.length} remaining`;
-  document.getElementById('reviewImg').src = u.driveImageUrl || '';
+  document.getElementById('reviewImg').src = (reviewEdit.id === u.id && reviewEdit.base64) ? 'data:image/jpeg;base64,' + reviewEdit.base64 : (u.driveImageUrl || '');
+  cancelReviewCrop();
   // Reset zoom
   reviewZoomLevel = 1;
   const rz = document.getElementById('reviewZoomSlider'); if (rz) rz.value = 1;
@@ -592,6 +624,189 @@ function skipReview() {
   }
 }
 
+// ── Rotate & crop (shared by the Add/Edit "Adjust image" step and the bulk Review step) ──
+const cropTools = {};
+// Tracks in-memory edits (rotate/crop) made to the currently open review card, since the
+// original bytes live in Drive and edits only get written back on Save.
+let reviewEdit = { id: null, base64: null };
+
+function rotateBase64Image(base64) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalHeight; canvas.height = img.naturalWidth;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      resolve(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]);
+    };
+    img.onerror = reject;
+    img.src = 'data:image/jpeg;base64,' + base64;
+  });
+}
+
+function cropBounds(name) {
+  const t = cropTools[name];
+  const cRect = t.container.getBoundingClientRect();
+  const iRect = t.img.getBoundingClientRect();
+  return { left: iRect.left - cRect.left, top: iRect.top - cRect.top, width: iRect.width, height: iRect.height };
+}
+
+function renderCropBox(name) {
+  const t = cropTools[name];
+  t.box.style.left = t.rect.x + 'px';
+  t.box.style.top = t.rect.y + 'px';
+  t.box.style.width = t.rect.w + 'px';
+  t.box.style.height = t.rect.h + 'px';
+}
+
+function resetCropBox(name) {
+  const t = cropTools[name];
+  if (!t) return;
+  const b = cropBounds(name);
+  const insetX = b.width * 0.05, insetY = b.height * 0.05;
+  t.rect = { x: b.left + insetX, y: b.top + insetY, w: b.width - insetX * 2, h: b.height - insetY * 2 };
+  renderCropBox(name);
+}
+
+function setupCropTool(name, containerId, imgId, boxId) {
+  const container = document.getElementById(containerId);
+  const img = document.getElementById(imgId);
+  const box = document.getElementById(boxId);
+  if (!container || !img || !box) return;
+  cropTools[name] = { container, img, box, rect: null };
+
+  const getPoint = e => (e.touches ? e.touches[0] : e);
+  const minSize = 30;
+
+  function startDrag(mode) {
+    return e => {
+      e.preventDefault(); e.stopPropagation();
+      const p = getPoint(e);
+      const startX = p.clientX, startY = p.clientY;
+      const startRect = { ...cropTools[name].rect };
+      const bounds = cropBounds(name);
+
+      function onMove(ev) {
+        const mp = getPoint(ev);
+        const dx = mp.clientX - startX, dy = mp.clientY - startY;
+        let { x, y, w, h } = startRect;
+        if (mode === 'move') {
+          x = startRect.x + dx; y = startRect.y + dy;
+          x = Math.max(bounds.left, Math.min(x, bounds.left + bounds.width - w));
+          y = Math.max(bounds.top, Math.min(y, bounds.top + bounds.height - h));
+        } else {
+          if (mode.includes('w')) { const right = startRect.x + startRect.w; x = Math.min(startRect.x + dx, right - minSize); w = right - x; }
+          if (mode.includes('e')) { w = Math.max(minSize, startRect.w + dx); }
+          if (mode.includes('n')) { const bottom = startRect.y + startRect.h; y = Math.min(startRect.y + dy, bottom - minSize); h = bottom - y; }
+          if (mode.includes('s')) { h = Math.max(minSize, startRect.h + dy); }
+          x = Math.max(bounds.left, x);
+          y = Math.max(bounds.top, y);
+          w = Math.min(w, bounds.left + bounds.width - x);
+          h = Math.min(h, bounds.top + bounds.height - y);
+        }
+        cropTools[name].rect = { x, y, w, h };
+        renderCropBox(name);
+      }
+      function onUp() {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    };
+  }
+
+  box.addEventListener('pointerdown', e => { if (e.target === box) startDrag('move')(e); });
+  box.querySelector('.nw').addEventListener('pointerdown', startDrag('nw'));
+  box.querySelector('.ne').addEventListener('pointerdown', startDrag('ne'));
+  box.querySelector('.sw').addEventListener('pointerdown', startDrag('sw'));
+  box.querySelector('.se').addEventListener('pointerdown', startDrag('se'));
+}
+
+// Crops `img` (full natural resolution) to the on-screen selection rect for `name`, returns a data URL.
+function cropToDataUrl(name, img) {
+  const t = cropTools[name];
+  const bounds = cropBounds(name);
+  const scaleX = img.naturalWidth / bounds.width;
+  const scaleY = img.naturalHeight / bounds.height;
+  const sx = (t.rect.x - bounds.left) * scaleX;
+  const sy = (t.rect.y - bounds.top) * scaleY;
+  const sw = t.rect.w * scaleX;
+  const sh = t.rect.h * scaleY;
+  const canvas = document.createElement('canvas');
+  canvas.width = sw; canvas.height = sh;
+  canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+// -- Add/Edit "Adjust image" rotate --
+async function rotateCropImage(name) {
+  if (name !== 'add') return;
+  state.pendingImageBase64 = await rotateBase64Image(state.pendingImageBase64);
+  const cropImg = document.getElementById('cropImg');
+  cropImg.onload = () => resetCropBox('add');
+  cropImg.src = 'data:image/jpeg;base64,' + state.pendingImageBase64;
+}
+
+// -- Bulk review rotate/crop --
+// The original bytes live in Drive; fetch them once per card and keep edits in memory
+// until Save (or discard them if the card is skipped/closed without saving).
+async function ensureReviewEditLoaded() {
+  const u = state.unprocessed[state.reviewIndex];
+  if (!u?.driveFileId) return null;
+  if (reviewEdit.id !== u.id) reviewEdit = { id: u.id, base64: null };
+  if (!reviewEdit.base64) {
+    try { reviewEdit.base64 = await fetchDriveFileAsBase64(u.driveFileId); }
+    catch (e) { showToast('Could not load image: ' + e.message, true); return null; }
+  }
+  return reviewEdit.base64;
+}
+
+async function rotateReviewImage() {
+  const base64 = await ensureReviewEditLoaded();
+  if (!base64) return;
+  reviewEdit.base64 = await rotateBase64Image(base64);
+  document.getElementById('reviewImg').src = 'data:image/jpeg;base64,' + reviewEdit.base64;
+}
+
+async function openReviewCrop() {
+  const base64 = await ensureReviewEditLoaded();
+  if (!base64) return;
+  document.getElementById('splitImgViewer').style.display = 'none';
+  document.getElementById('reviewControlsNormal').style.display = 'none';
+  document.getElementById('reviewCropContainer').style.display = 'flex';
+  document.getElementById('reviewControlsCrop').style.display = 'flex';
+  const cropImg = document.getElementById('reviewCropImg');
+  cropImg.onload = () => resetCropBox('review');
+  cropImg.src = 'data:image/jpeg;base64,' + base64;
+}
+
+function cancelReviewCrop() {
+  document.getElementById('reviewCropContainer').style.display = 'none';
+  document.getElementById('reviewControlsCrop').style.display = 'none';
+  document.getElementById('splitImgViewer').style.display = 'flex';
+  document.getElementById('reviewControlsNormal').style.display = 'flex';
+}
+
+function applyReviewCrop() {
+  const dataUrl = cropToDataUrl('review', document.getElementById('reviewCropImg'));
+  reviewEdit.base64 = dataUrl.split(',')[1];
+  document.getElementById('reviewImg').src = dataUrl;
+  cancelReviewCrop();
+}
+
+async function updateDriveFileImage(fileId, base64) {
+  const bytes = atob(base64), arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  const blob = new Blob([arr], { type: 'image/jpeg' });
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: 'PATCH', headers: { Authorization: `Bearer ${state.accessToken}`, 'Content-Type': 'image/jpeg' }, body: blob
+  });
+}
+
 async function saveReviewed() {
   const u = state.unprocessed[state.reviewIndex];
   if (!u) return;
@@ -611,6 +826,9 @@ async function saveReviewed() {
 
   try {
     showToast('Saving contact…');
+    if (reviewEdit.id === u.id && reviewEdit.base64) {
+      await updateDriveFileImage(u.driveFileId, reviewEdit.base64);
+    }
     const newFileId = await copyDriveFile(u.driveFileId, newFilename, state.savedFolderId);
     const imageUrl = `https://drive.google.com/thumbnail?id=${newFileId}&sz=w1000`;
     await makeFilePublic(newFileId);
@@ -626,6 +844,7 @@ async function saveReviewed() {
     };
     state.contacts.unshift(contact);
     state.unprocessed.splice(state.reviewIndex, 1);
+    reviewEdit = { id: null, base64: null };
 
     await saveContactsToDrive();
     await saveUnprocessedToDrive();
@@ -656,7 +875,7 @@ async function discardUnprocessed(id) {
 
 // ── Add (single) Modal ──
 function openAdd() {
-  state.editingId = null; state.pendingImageFile = null; state.pendingImageBase64 = null; state.croppedImageBase64 = null; state.zoom = 1;
+  state.editingId = null; state.pendingImageFile = null; state.pendingImageBase64 = null; state.croppedImageBase64 = null;
   document.getElementById('modalTitle').textContent = 'Add Contact';
   clearForm(); clearFile();
   document.getElementById('addOverlay').classList.add('open');
@@ -731,28 +950,15 @@ function handleFile(file) {
     document.getElementById('previewSection').style.display = 'none';
     document.getElementById('cropSection').style.display = 'flex';
     const cropImg = document.getElementById('cropImg');
+    cropImg.onload = () => resetCropBox('add');
     cropImg.src = e.target.result;
-    state.zoom = 1;
-    const zs = document.getElementById('zoomSlider'); if (zs) { zs.value = 1; }
-    const zv = document.getElementById('zoomVal'); if (zv) zv.textContent = '1×';
-    applyZoom(1);
   };
   reader.readAsDataURL(file);
 }
 
-function applyZoom(val) {
-  state.zoom = parseFloat(val);
-  const zv = document.getElementById('zoomVal'); if (zv) zv.textContent = parseFloat(val).toFixed(2) + '×';
-  const img = document.getElementById('cropImg');
-  if (img) img.style.transform = `scale(${state.zoom})`;
-}
-
 function confirmCrop() {
   const img = document.getElementById('cropImg');
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-  canvas.getContext('2d').drawImage(img, 0, 0);
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  const dataUrl = cropToDataUrl('add', img);
   state.croppedImageBase64 = dataUrl.split(',')[1];
   document.getElementById('cropSection').style.display = 'none';
   document.getElementById('previewSection').style.display = 'flex';
@@ -891,7 +1097,10 @@ function openDetail(id) {
     <div class="detail-info-panel">
       <div class="detail-info-header">
         <span style="font-size:12px;color:var(--text-hint)">${c.createdAt ? 'Added ' + new Date(c.createdAt).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
-        <button class="icon-btn" onclick="closeDetail()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="detail-flagstar">${flagStarButtons(c)}</span>
+          <button class="icon-btn" onclick="closeDetail()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </div>
       </div>
       <div class="detail-info-body">
         <div class="detail-name">${escHtml((c.firstName || '') + ' ' + (c.lastName || ''))}</div>
@@ -1110,3 +1319,7 @@ function showToast(msg, isError = false) {
   t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : '');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 3200);
 }
+
+// ── Crop tools boot ──
+setupCropTool('add', 'addCropContainer', 'cropImg', 'addCropBox');
+setupCropTool('review', 'reviewCropContainer', 'reviewCropImg', 'reviewCropBox');

@@ -130,8 +130,29 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1rem; }
 .contact-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; box-shadow: var(--shadow-sm); }
 .contact-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-.card-img { height: 110px; background: var(--surface2); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.card-img { height: 110px; background: var(--surface2); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
 .card-img img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Flag / Star ── */
+.card-flagstar { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+.flag-btn, .star-btn {
+  width: 22px; height: 22px; border-radius: 6px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.7);
+}
+.flag-btn:hover, .star-btn:hover { background: rgba(0,0,0,0.65); color: white; }
+.flag-btn.active { background: var(--danger); color: white; }
+.star-btn.active { background: var(--gold); color: white; }
+.list-flagstar { display: inline-flex; gap: 4px; margin-left: 6px; }
+.list-flagstar .flag-btn, .list-flagstar .star-btn { background: transparent; color: var(--text-hint); }
+.list-flagstar .flag-btn:hover, .list-flagstar .star-btn:hover { background: var(--surface2); color: var(--text); }
+.list-flagstar .flag-btn.active { color: var(--danger); }
+.list-flagstar .star-btn.active { color: var(--gold); }
+.detail-flagstar { display: inline-flex; gap: 4px; }
+.detail-flagstar .flag-btn, .detail-flagstar .star-btn { background: var(--surface2); color: var(--text-muted); }
+.detail-flagstar .flag-btn:hover, .detail-flagstar .star-btn:hover { color: var(--text); }
+.detail-flagstar .flag-btn.active { background: var(--danger-light); color: var(--danger); }
+.detail-flagstar .star-btn.active { background: var(--gold-light); color: var(--gold); }
 .card-img-ph { color: var(--text-hint); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; }
 .card-body { padding: 0.875rem; }
 .card-name { font-weight: 500; font-size: 14px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -206,6 +227,21 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 /* ── Crop ── */
 .crop-container { position: relative; width: 100%; height: 260px; background: #111; border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .crop-container img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center; user-select: none; }
+
+/* ── Crop box overlay ── */
+.crop-overlay { position: absolute; inset: 0; pointer-events: none; }
+.crop-box {
+  position: absolute; border: 2px solid white; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+  cursor: move; pointer-events: all; touch-action: none;
+}
+.crop-handle {
+  position: absolute; width: 16px; height: 16px; background: white; border-radius: 50%;
+  transform: translate(-50%, -50%); touch-action: none;
+}
+.crop-handle.nw { top: 0; left: 0; cursor: nwse-resize; }
+.crop-handle.ne { top: 0; left: 100%; cursor: nesw-resize; }
+.crop-handle.sw { top: 100%; left: 0; cursor: nesw-resize; }
+.crop-handle.se { top: 100%; left: 100%; cursor: nwse-resize; }
 
 /* ── Scanning banner ── */
 .scanning-banner { display: flex; align-items: center; gap: 10px; background: var(--accent-light); border: 1px solid rgba(64,145,108,0.2); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; color: var(--accent); margin-bottom: 1rem; }
