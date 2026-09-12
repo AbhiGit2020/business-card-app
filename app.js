@@ -447,6 +447,8 @@ function renderUnprocessed() {
         </div>
         <div class="unprocessed-actions">
           ${u.status === 'ready' ? `<button class="btn btn-primary btn-sm" onclick="reviewSingle(${idx})">Review</button>` : ''}
+          ${(u.status === 'error' || (u.status === 'ready' && !u.scannedData?.firstName && !u.scannedData?.company))
+            ? `<button class="btn btn-ghost btn-sm" onclick="rescanUnprocessed('${u.id}')">Re-scan</button>` : ''}
           <button class="btn btn-danger btn-sm" onclick="discardUnprocessed('${u.id}')">Discard</button>
         </div>
       </div>`;
@@ -454,6 +456,39 @@ function renderUnprocessed() {
     html += `</div>`;
   }
   main.innerHTML = html;
+}
+
+// Re-run OCR for a card that was scanned before (e.g. Vision API was failing at the time),
+// pulling the original image back from Drive instead of requiring a re-upload.
+async function rescanUnprocessed(id) {
+  const u = state.unprocessed.find(x => x.id === id);
+  if (!u?.driveFileId) return;
+  u.status = 'scanning';
+  renderMain();
+  try {
+    const base64 = await fetchDriveFileAsBase64(u.driveFileId);
+    const text = await visionOCR(base64);
+    u.scannedData = text ? parseCardTextToObject(text) : {};
+    u.status = 'ready';
+    if (!text) showToast('No text detected — you can fill in manually', true);
+  } catch (e) {
+    u.status = 'error';
+    showToast('Re-scan failed: ' + e.message, true);
+  }
+  await saveUnprocessedToDrive();
+  renderMain();
+}
+
+async function fetchDriveFileAsBase64(fileId) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { Authorization: `Bearer ${state.accessToken}` } });
+  if (!res.ok) throw new Error(`Drive GET: ${res.status}`);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 // ── Bulk Upload ──
